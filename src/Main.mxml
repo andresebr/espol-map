@@ -1,0 +1,2436 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" minWidth="1920" minHeight="1080"
+			   xmlns:ai="http://ns.adobe.com/ai/2009"
+			   xmlns:d="http://ns.adobe.com/fxg/2008/dt"
+			   xmlns:panzoom="org.rockholla.controls.panzoom.*"
+			   xmlns:local="*"
+			   xmlns:ns1="*"
+			   initialize="init()">
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace panzoom "org.rockholla.controls.panzoom.*";
+		
+		s|List {
+			chromeColor: #333333;
+			color: white;
+			contentBackgroundColor: black;
+			fontSize: 20;
+			
+		}
+	</fx:Style>
+	
+	<fx:Script>
+		<![CDATA[
+			
+			import classes.*;
+			
+			import com.oskarwicha.images.FaceRecognition.Events.FaceEvent;
+			import com.oskarwicha.images.FaceRecognition.Events.FaceRecognitionEvent;
+			import com.oskarwicha.images.FaceRecognition.Face;
+			import com.oskarwicha.images.FaceRecognition.FaceRecognition;
+			
+			import flash.events.TimerEvent;
+			import flash.filters.*;
+			import flash.utils.Timer;
+			
+			import mx.core.UIComponent;
+			import mx.graphics.codec.JPEGEncoder;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			import mx.utils.Base64Encoder;
+			
+			import org.rockholla.controls.panzoom.PanZoomContent;
+			import org.rockholla.positioning.Orientation;
+			
+			import spark.components.BorderContainer;
+			import spark.components.Button;
+			// EN: Object containing face to be recognized
+			
+			private var face:Face;
+			
+			// EN: Contains relative path to directory with images of faces
+			
+			[Bindable]
+			private var relativeUrlToTrainingSetDir:String =
+				"faces/trainingSet/";
+			// EN: Table containing Strings with faces clasificators (for example people names).
+			// 	   One clasificator for all face images of one person for best results.
+			
+			private var faceClasificationList:Array = [];
+			
+			/*
+			* EN: Table with URLs (relatrive or absolute) to images of faces used to train system.
+			*     ["faces/trainingSet/images/KA.HA3.31.jpg", "faces/trainingSet/images/KA.HA3.31.jpg"];
+			*/
+			[Bindable]
+			private var faceUrlList:Array = [];
+			// EN: URL to image of unknown face nr. 1 wich can by recognized
+			
+			private var unknownFaceImageUrl:String =
+				"faces/temp/images/unknown.jpg";
+			// EN: URL to image of unknown face nr. 2 wich can by recognized
+			
+			private var unknownFaceImageUrl2:String =
+				"faces/temp/images/unknown2.jpg";
+			
+			// EN: Object responsible for face recognition
+			
+			private var faceRecognition:FaceRecognition = new FaceRecognition();
+			//------------------------------------------------------------------------------------------------------------
+			
+			
+			
+			public static const MAX_ZOOM:Number = 4;
+			public static const MIN_ZOOM:Number = 0.1;
+			
+			private var inicio:int;
+			private var fin:int;
+			private var ourMap:Array;
+			private var routes:Array;
+			
+			private function init():void
+			{
+				var camera:Camera = Camera.getCamera();
+				
+				var d0:Array=new Array(0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d1:Array=new Array(1,0,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d2:Array=new Array(-1,-1,0,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d3:Array=new Array(-1,-1,-1,0,-1,1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d4:Array=new Array(-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d5:Array=new Array(-1,-1,-1,1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d6:Array=new Array(-1,-1,-1,-1,-1,1,0,1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d7:Array=new Array(-1,-1,-1,-1,-1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d8:Array=new Array(-1,-1,1,1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1);
+				var d9:Array=new Array(-1,1,-1,-1,-1,-1,1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d10:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d11:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,-1);
+				var d12:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d13:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,0,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1);
+				var d14:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d15:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d16:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d17:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d18:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,0,1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d19:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d20:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d21:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d22:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1);
+				var d23:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1);
+				var d24:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d25:Array=new Array(-1,-1,-1,-1,1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d26:Array=new Array(-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d27:Array=new Array(-1,-1,-1,1,1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d28:Array=new Array(-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d29:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1);
+				var d30:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d31:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d32:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1);
+				var d33:Array=new Array(1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d34:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d35:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d36:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1,-1,-1,-1,1);
+				var d37:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,-1,-1,-1,-1,-1,-1,-1);
+				var d38:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,1,-1,1);
+				var d39:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,0,-1,1,-1,-1,-1,-1);
+				var d40:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1,-1,-1);
+				var d41:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,0,-1,-1,-1,-1);
+				var d42:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,1,-1,-1);
+				var d43:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,1,0,-1,-1);
+				var d44:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,-1);
+				var d45:Array=new Array(-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,1,-1,-1,-1,-1,-1,-1,0);
+				
+				
+				
+				ourMap = new Array(d0,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24,d25,d26,d27,d28,d29,d30,d31,d32,d33,d34,d35,d36,d37,d38,d39,d40,d41,d42,d43,d44,d45);
+				faceRecognition.addEventListener(FaceRecognitionEvent.TRAINED, onFaceRecognitionTrained);
+				faceRecognition.addEventListener(FaceRecognitionEvent.LOADED_TRAINING_FACES, onFaceRecognitionLoadedTrainingFaces);
+				faceRecognition.addEventListener(FaceRecognitionEvent.PROBED, onFaceRecognitionProbed);
+				camera.setQuality(0, 100);
+				camera.setMode(533, 400, 30);
+				myVid.attachCamera(camera);
+				
+				
+			}
+			
+			private function setDestination(event:Event):void{
+				var idruta:int;
+				idruta=event.currentTarget.selectedItem.num;
+				
+				fin=event.currentTarget.selectedItem.num;
+				if(routes!=null){
+					for(var r:int=0;r<routes.length;r++){
+						
+						this["r"+routes[r]].visible=false;
+						
+					}
+					
+				}
+				if(inicio!=fin){
+					//shortTimer();
+					//faceRecognition.train();
+					savePhoto(idruta);
+					var dijkstra:Route = new Route(ourMap, inicio, fin);
+					
+					routes=dijkstra.getRoute();
+					for(var r:int=0;r<routes.length;r++){
+						//trace(routes[r]);
+						
+						this["r"+routes[r]].visible=true;
+						
+					}
+				}
+				
+			}
+			
+			private function retakeDestination(d1:int,d2:int):void{
+				if(routes!=null){
+					for(var r:int=0;r<routes.length;r++){
+						
+						this["r"+routes[r]].visible=false;
+						
+					}
+					
+				}
+				if(d1!=d2){
+					//shortTimer();
+					//faceRecognition.train();
+					//savePhoto(idruta);
+					var dijkstra:Route = new Route(ourMap, d1, d2);
+					
+					routes=dijkstra.getRoute();
+					for(var r:int=0;r<routes.length;r++){
+						//trace(routes[r]);
+						
+						this["r"+routes[r]].visible=true;
+						
+					}
+				}
+				
+			}
+			
+			//Face Recognition---------------------------------------------------------------------------------------------
+			
+			private function loadFace(url:String):void
+			{
+				// EN: Loads face image to show it on screen
+				unknownFaceImage.load(url);
+				/*
+				* EN: Creates object of class Face and loads face image to be recognized
+				*/
+				face = new Face(url);
+				// EN: Adds event listener to "face" object for event dispatched when new face to be recognized is loaded
+				face.addEventListener(FaceEvent.FACE_LOADED, onFaceLoaded);
+			}
+			
+			private function handleXmlTrainingSetData(event:ResultEvent):void
+			{
+				var xmlTrainingSetData:XMLList;
+				xmlTrainingSetData = event.result.image as XMLList;
+				var length:uint = xmlTrainingSetData.length();
+				progressShower.htmlText += ("Received list of " + length.toString() + " images and theirs clasificators.");
+				// EN: Clears table before loading new data
+				// PL: Resetuje tablice przed zapianie nowych danych o twarzach
+				faceUrlList = [];
+				// EN: Clears table before loading new data
+				// PL: Resetuje tablice przed zapianie nowych danych o twarzach
+				faceClasificationList = [];
+				
+				// EN: Fills table with loaded data 
+				// PL: Wypełnia tablice pobranymi danymi z serwera
+				for (var i:int = 0; i < length; ++i)
+				{
+					var url:String = xmlTrainingSetData[i].path;
+					var clasification:String = xmlTrainingSetData[i].name;
+					// EN: Adds new element to table
+					faceClasificationList.push(clasification);
+					// EN: Adds new element to table
+					faceUrlList.push(relativeUrlToTrainingSetDir + url);
+				}
+				/*
+				* EN: Loads face images and theirs clasificators witch are used for system training.
+				*/
+				faceRecognition.loadTrainingFaces(faceClasificationList, faceUrlList);
+			}
+			
+			private function handleFault(event:FaultEvent):void
+			{
+				// EN: Displays info on screen
+				progressShower.htmlText +=
+					"Error: " + event.fault.faultString;
+			}
+			
+			// EN: Function executed when new image with face to be recognized is loaded 
+			private function onFaceLoaded(e:FaceEvent):void
+			{
+				machedFaceImage.source = "";
+			}
+			
+			//EN: Handles event informing about end of training
+			private function onFaceRecognitionTrained(e:Event):void
+			{
+				progressShower.htmlText += "System trained successfully.";
+				saveUnknown(unknownFaceImageUrl);
+				//faceRecognition.probe(face);
+				shortTimer();
+			}
+			
+			//EN: Function handles event informing about successfull end of loading of training set of images and clasificators
+			private function onFaceRecognitionLoadedTrainingFaces(e:Event):void
+			{
+				progressShower.htmlText += "All images from training set are now loaded.";
+				faceRecognition.train();
+			}
+			
+			//EN: Function handling event informing about result of recognition process
+			private function onFaceRecognitionProbed(e:FaceRecognitionEvent):void
+			{
+				machedFaceImage.visible = true;
+				machedFaceImage.load("faces/trainingSet/images/" + e.classification);
+				progressShower.htmlText += "Face recognized as: " + e.classification;
+				//aqui hay que sacar el numero para que sea el nuevo fin
+				var str:String=e.classification;
+				var ar:Array = str.split(".");
+				fin=int(ar[0]);
+				retakeDestination(inicio,fin);
+				indicator.visible=false;
+			}
+			
+			//Camera------------------------------------------------------------------------------------------------------
+			
+			protected function savePhoto(idruta:int):void
+			{
+				// TODO Auto-generated method stub
+				var bmd:BitmapData = new BitmapData(533, 400);
+				bmd.draw(myVid);
+				bmd=grayScale(bmd);
+				imagen.source = new Bitmap(bmd);
+				var je:JPEGEncoder = new JPEGEncoder(100);
+				var ba:ByteArray = je.encode(bmd);
+				var be:Base64Encoder = new Base64Encoder();
+				be.encodeBytes(ba);
+				var encodedData:String = be.flush();
+				var handleService:mx.rpc.http.HTTPService = new mx.rpc.http.HTTPService(); 
+				handleService.url = "picturehandler.php";
+				handleService.method = "POST";
+				handleService.showBusyCursor = true;
+				handleService.send({foto: encodedData, consulta: idruta, accion: 1});
+				//handleService.send({consulta: idruta});
+				
+			}
+			
+			
+			
+			public function grayScale(bmd:BitmapData):BitmapData{
+				
+				var matrix:Array = new Array();
+				matrix = matrix.concat([0.3,0.59,0.11,0,0]);
+				matrix = matrix.concat([0.3,0.59,0.11,0,0]);
+				matrix = matrix.concat([0.3,0.59,0.11,0,0]);
+				matrix = matrix.concat([0,0,0,1,0]);
+				
+				var colorFilter:ColorMatrixFilter = new ColorMatrixFilter(matrix);
+				bmd.applyFilter(bmd, bmd.rect, new Point(0,0), colorFilter);
+				
+				return bmd;
+			}
+			
+			protected function retakeSearch(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				//trace("click");
+				indicator.visible=true;
+				getTrainingSetData.send();
+			}
+			
+			protected function saveUnknown(url:String):void
+			{
+				// TODO Auto-generated method stub
+				var bmd:BitmapData = new BitmapData(533, 400);
+				bmd.draw(myVid);
+				bmd=grayScale(bmd);
+				imagen.source = new Bitmap(bmd);
+				var je:JPEGEncoder = new JPEGEncoder(100);
+				var ba:ByteArray = je.encode(bmd);
+				var be:Base64Encoder = new Base64Encoder();
+				be.encodeBytes(ba);
+				var encodedData:String = be.flush();
+				var handleService:mx.rpc.http.HTTPService = new mx.rpc.http.HTTPService(); 
+				handleService.url = "picturehandler.php";
+				handleService.method = "POST";
+				handleService.showBusyCursor = true;
+				handleService.send({foto: encodedData, consulta: "unk", accion:2});
+				//faceRecognition.train();
+				//var url:String="http://localhost/navigation/faces/temp/images/unknown.jpg";
+				loadFace(url);
+				
+				
+				
+			}
+			
+			//Timer---------------------------------------------------------------------------------------------------------
+			
+			public function shortTimer():void 
+			{
+				// creates a new five-second Timer
+				var minuteTimer:Timer = new Timer(1000, 2);
+				
+				// designates listeners for the interval and completion events
+				minuteTimer.addEventListener(TimerEvent.TIMER, onTick);
+				minuteTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onTimerComplete);
+				
+				// starts the timer ticking
+				minuteTimer.start();
+			}
+			
+			//Events--------------------------------------------------------------------------------------------------------------------
+			protected function estacion1_btn_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				/* cfginicial_panel.visible=false;
+				ubicacion.source="images/Map_Pin_by_Merlin2525.png";
+				ubicacion.x=478;
+				ubicacion.y=174;
+				ubicacion.visible=true;
+				aulasfiec.source="images/estacion1/aulasfiec.png";
+				aulasfiec.x=389;
+				aulasfiec.y=213;
+				gimnasioprofesores.source="images/estacion1/gimnasioprofesores.png";
+				gimnasioprofesores.x=220;
+				gimnasioprofesores.y=78;
+				coliseo.source="images/estacion1/coliseo.png";
+				coliseo.x=487;
+				coliseo.y=209; */
+				inicio=8;
+				cfginicial_panel.visible=false;
+				pin.x=261;
+				pin.y=209.5;
+				pin.visible=true;
+				
+				
+				
+				
+			}
+			
+			protected function estacion2_btn_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				/* cfginicial_panel.visible=false;
+				ubicacion.source="images/Map_Pin_by_Merlin2525.png";
+				ubicacion.x=176;
+				ubicacion.y=475;
+				ubicacion.visible=true;
+				aulasfiec.source="images/estacion2/aulasfiec.png";
+				aulasfiec.x=185;
+				aulasfiec.y=273;
+				gimnasioprofesores.source="images/estacion2/gimnasioprofesores.png";
+				gimnasioprofesores.x=185;
+				gimnasioprofesores.y=73;
+				coliseo.source="images/estacion2/coliseo.png";
+				coliseo.x=185;
+				coliseo.y=202; */
+				inicio=43;
+				cfginicial_panel.visible=false;
+				pin.x=333.33;
+				pin.y=505.635;
+				pin.visible=true;
+			}
+			public function onTick(event:TimerEvent):void 
+			{
+				// displays the tick count so far
+				// The target of this event is the Timer instance itself.
+				trace("tick " + event.target.currentCount);
+			}
+			
+			public function onTimerComplete(event:TimerEvent):void
+			{
+				trace("Time's Up!");
+				//faceRecognition.train();
+				faceRecognition.probe(face);
+				
+			}
+			
+			
+			//Zoom---------------------------------------------------------------------------------------------------------
+			
+			// The PanZoomComponent provides and event "zoom" for which you can set a callback
+			// whenever a zoom in or out happens.  Here, we're detecting a zoom from the component
+			// and setting the slider value accordingly
+			/* protected function _onZoom():void
+			{
+			
+			}
+			
+			// The PanZoomComponent provides an event "pan" for which you can set a callback
+			// whenever a pan happens
+			protected function _onPan():void
+			{
+			//trace("We're panning!!!");
+			}
+			
+			// Below are some of the tests kicked off by the buttons
+			
+			protected function _testZoomToPoint():void
+			{
+			this.panzoom.zoomToPoint(new Point(970, 3025), 3);
+			}
+			
+			protected function _testScrollRect():void
+			{
+			this.panzoom.content.scrollRect = new Rectangle(300, 200, 1000, 20000);
+			}
+			
+			protected function _testContentResize():void
+			{
+			this.panzoom.content.width = 1000;
+			this.panzoom.content.height = 6000;
+			}
+			
+			protected function _testReplaceContent():void
+			{
+			var newContent:PanZoomContent = new PanZoomContent(5000, 1000);
+			newContent.backgroundColor = 0x000000;
+			newContent.backgroundAlpha = 0.5;
+			this.panzoom.content = newContent;
+			}
+			
+			protected function _testSetScaleManual():void
+			{
+			this.panzoom.scale = 2;
+			}
+			
+			protected function _testWarningsAndErrors():void
+			{
+			try
+			{
+			this.panzoom.horizontalScrollPolicy = "on";	
+			}
+			catch(error:Error)
+			{
+			trace(error.message);
+			}
+			
+			try
+			{
+			this.panzoom.zoomToPoint(new Point(5000, 1000), 3);
+			}
+			catch(error:Error)
+			{
+			trace(error.message);
+			}
+			}
+			
+			protected function _testRedrawContent():void
+			{
+			this.panzoom.content.backgroundColor = 0xA5DE9E;
+			this.panzoom.content.backgroundAlpha = 0.5;
+			this.panzoom.content.borderColor = 0xFFFFFF;
+			this.panzoom.content.borderThickness = 3;
+			this.panzoom.content.borderAlpha = 1;
+			}  */
+			
+			
+			
+			
+			
+			
+			
+			protected function image1_rollOutHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				Image(event.currentTarget).filters = [];
+				
+			}
+			
+			
+			protected function image1_rollOverHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				Image(event.currentTarget).filters = [new GlowFilter(939598)];
+				
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<mx:HTTPService id="getTrainingSetData"
+						result="handleXmlTrainingSetData(event);"
+						resultFormat="e4x"
+						fault="handleFault(event);"
+						method="POST"
+						url="{relativeUrlToTrainingSetDir}getTrainingSetData.php"
+						useProxy="false">
+		</mx:HTTPService>
+	</fx:Declarations>
+	
+	
+	
+	
+	<!--A continuacion el mapa-->
+	
+	<!--<panzoom:PanZoomComponent id="panzoom" backgroundColor="0x807F7A"							  
+	y="-1" width="100%" height="1081" 
+	scaleMin="{MIN_ZOOM}" scaleMax="{MAX_ZOOM}"
+	childPreventsPan="false"
+	zoomToCursor="true"
+	doubleClickZoomStep="1.5" 
+	centerOnLoad="false"
+	loadCenterPoint="{new Point(100, 100)}"
+	initialZoomLevel="1"
+	panScrollBarsVisible="true"
+	zoomSpeed="1" 
+	mouseWheelZoomingEnabled="true" 
+	fixedZoomPoint="{null}"
+	zoom="this._onZoom()" pan="this._onPan()">-->
+	
+	<!-- You must always include an implementation of PanZoomContent as the first and only child of the PanZoomComponent -->
+	<!-- You can then add whatever you like to the PanZoomContent.  Additionally, you can extend PanZoomContent to your needs, just like we've done here. -->
+	
+	<!--<local:CustomPanZoomContent>-->
+	
+	<s:Graphic version="2.0" viewHeight="1080" viewWidth="1920" ai:appVersion="15.0.0.399" d:id="1" d:using="" >
+		
+		<s:Group ai:artboardActive="1" ai:artboardIndex="0" ai:seqID="1" d:layerType="page" d:pageHeight="1080" d:pageWidth="1920" d:type="layer" d:userLabel="Artboard 1">
+			
+			
+			<s:Rect width="1920" height="1080" ai:objID="1115c500" ai:seqID="3" id="base" x="0" y="0">
+				<s:fill>
+					<s:SolidColor color="#C49A6C"/>
+				</s:fill>
+			</s:Rect>
+			
+			<s:Path x="693" y="653" winding="nonZero" ai:objID="11404100" ai:seqID="4" data="M4.66504 309 8 293.5 4.66504 276.333 6.33252 270.722 10 254.5 16 243.667 23 238.645 30 238.645 44.6714 238.645 49.5 238.645 70 233.5 75.002 229.652 76.7529 215.611 80 202.667 80 194.667 71.5 171.871 75.002 167.454 72 155.436 71 140.705 73.5 108.167
+					78.5 85.667 105.009 57.375 116.66 61 122.999 61.5 127 53.333 134.671 45.833 139.669 40.333 152.521 32.25 161.5 32.25 191 31.166 203.115 35 222.5 57.166 230.173 64.333 247 75 264.219 83.833 277.5 83.833 302 73.5 313.59 60 320.5 50 323.5 40.333
+					339 31.166 366.34 7 403.506 0 433.5 0 447.34 38.333 461.5 64.333 466.92 88.5 469.5 114.917 477.5 111.333 491.673 102.166 521.5 101.608 536.5 111.333 543 121.667 547.5 130.603 549.5 147.58 552 163.288 527 201 515 208.546 454.42 232 437 245.667
+					401.172 260 359.5 276.333 316.5 276.333 278.332 276.333 262 285.667 255.006 294 255.006 297.334 219.171 312.5 198.448 321.5 161 336 134.671 345.5 113.338 355.5 81.502 367.5 47 379 26.752 368 8.5 352.5 0 329.5 4.66504 309Z">
+				<s:fill>
+					<s:SolidColor color="#58595B"/>
+				</s:fill>
+			</s:Path>
+			<s:Path y="74.5" winding="nonZero" ai:objID="1101a100" ai:seqID="5" data="M0 467.377 25.5 477.068 34.0234 481.5 38.0024 490.303 38.835 506.616 38.835 514.5 46.1377 519 56.6685 521 78.334 517.5 101 517.5 115.667 521 128.926 514.5 131.336 506.616 131.336 494.188 133 482 137.667 467.377 142 456.167 148.167 444.742 371.002
+					516 384.003 498.5 394.669 488.219 394.669 477.068 402.665 472.9 412.669 463.833 426.002 456.167 440.323 444.742 456 436.5 461.757 426.583 471.043 414.017 481 397.833 498.5 374 505.5 362.167 505.5 357 433 221.167 417 207 386 227.188 384.003 223.167
+					379 219.167 379 215 375.669 209.083 368.334 203.542 366 199.083 357 189.083 329.667 208.833 312.667 192.083 308.333 182.167 299.599 166 290 156.016 280.25 141.5 271.5 128 262.667 116.709 266.667 110.225 271.5 92.0835 265.667 83 251 64 233 52.5
+					215.336 57.5 206 59.8335 195.167 70.5 183.168 66.5 164 65 158.667 66 154.583 59.8335 154 44.5 166.333 32.5 168.667 25.25 161.753 12 161.753 5 66.334 0 64.334 52.5 64.334 74.5 54.2734 89.1665 46 106.5 48.5 124.949 54.667 141.5 51.0029 152 43.2095
+					196 34.0234 219.167 26.5 245.167 22.4795 264.5 16.668 287 10.3345 309.625 5 349.167 0 371.667 0 467.377Z">
+				<s:fill>
+					<s:SolidColor color="#58595B"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="335" y="267.667" winding="nonZero" ai:objID="8eaef80" ai:seqID="6" data="M0 16 16 0 44 26C44 26 44.0005 41.334 27.3335 42.667L0 16Z" id="p2">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="215.336" y="134.333" winding="nonZero" ai:objID="10c10580" ai:seqID="7" data="M1.3335 17.6665 33.3335 29.333 37.3335 27.333 41.3335 17.6665 39.3335 12 35 7.6665 30.3335 5.6665 22.667 0 18.3335 5.6665 6.66699 0 0 10.333 0 16.333 1.3335 17.6665Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="373.336" y="482.667" winding="nonZero" ai:objID="10c10400" ai:seqID="8" data="M0 25.333 16.3335 0 21.3335 0 21.3335 26.6665C21.3335 26.6665 16.333 31.9995 0 25.333Z" id="p12">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="51.0029" y="170" winding="nonZero" ai:objID="10c10280" ai:seqID="9" data="M0 15.3335 16.333 0 18.6665 5.3335 22.333 10 29.333 11.3335 16.6665 29.3335C16.6665 29.3335 6.66699 31.667 0 15.3335Z" id="p0">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path y="517.667" winding="nonZero" ai:objID="10da4480" ai:seqID="10" data="M0 17 27.0024 26.0005 33.3354 9 7.00244 0 0 17Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path y="477.333" winding="nonZero" ai:objID="10da4300" ai:seqID="11" data="M0 38C0 38 10.3335 39.9995 16.668 30.333L14.0024 26.333 20.6689 21.6665 13.0024 0 0 0 0 38Z" id="p23">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="38.0024" y="538.333" winding="nonZero" ai:objID="10da4180" ai:seqID="12" data="M9.6665 9.3335 14.6665 0 26.3315 3.3335 18.998 17.3335 17.999 21.3335C17.999 21.3335 17.333 25.6655 5.6665 15.9995L0 12.9995 0 8.6665 9.6665 9.3335Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="61.3354" y="538.333" winding="nonZero" ai:objID="10da3e80" ai:seqID="13" data="M40.3335 16.9995 50.667 0 57.334 5.3335C57.334 5.3335 58.3335 8.99951 61.3335 8.49951L70.0005 8.49951 65.667 31.6665 55.167 34.3335 54.3315 42.3335C54.3315 42.3335 45.334 45.0005 26.667 37.3335L26.667 32.6665 8.3335 38.6665 0 25.3335 8.3335 21.3911
+					11.667 24.3335 14 25.3335 15.3335 26.6665 19.9985 23.6665 19.9985 17.9995C19.9985 17.9995 17.667 15.6655 40.3335 16.9995Z" id="p24">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="213.002" y="231.333" winding="nonZero" ai:objID="10da3d00" ai:seqID="14" data="M1.33301 20 4.3335 10.333 1.6665 9 6.66406 0 12.6665 2.33301 12.6665 10 21.6665 12.6665 25.0005 5.33301 35.6665 10 25.0005 32.6665C25.0005 32.6665 8.32813 30.333 6.66406 22.333L0 20 1.33301 20Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="242.167" y="255.167" winding="nonZero" ai:objID="10da3b80" ai:seqID="15" data="M0 12.4995 5.83594 12.4995 11.8335 16.833 14.5029 12.4995 14.5029 9.1665 16.8359 7.83301 14.5029 4.1665 8.8335 4.1665 6.16895 0 2.50244 0 2.16895 5.49951 0 7.83301 0 12.4995Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="710.004" y="898.667" winding="nonZero" ai:objID="10da3580" ai:seqID="16" data="M0 30.666 22.3335 30.666 24 10.333 12 10.333 12 0 7 5.33301 0 1.66602 0 30.666Z" id="p34">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Rect x="776.671" y="871.333" width="7" height="8.33398" ai:objID="10da3400" ai:seqID="17">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="785.338" y="872.667" width="7" height="7" ai:objID="10da3280" ai:seqID="18">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="806.338" y="839.667" winding="nonZero" ai:objID="10da3100" ai:seqID="19" data="M0 7.66602 0 16 9.33301 16 21.333 6 15 0 10.6665 5.33301 0 7.66602Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="895.338" y="938.667" winding="nonZero" ai:objID="10da2f80" ai:seqID="20" data="M0 10.333 5.33301 8.66602 8.6665 13.333 23 8.66602 21 1.66602 25.6665 0 29.6665 9 33.6665 9.66602 33.6665 13.333 10 23.333 0 22 3.6665 18 0 10.333Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Rect x="1034.67" y="754.667" width="49.333" height="13" ai:objID="10da2e00" ai:seqID="21">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="1090.01" y="754.667" width="55.667" height="13" ai:objID="10da2c80" ai:seqID="22">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="1090.01" y="779" width="50.334" height="11" ai:objID="10da2b00" ai:seqID="23">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="1184.67" y="764.333" winding="nonZero" ai:objID="10da2980" ai:seqID="24" data="M0 9 11 25.667 26 17.333 15.667 0 0 9Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Rect x="923.173" y="745.333" width="20.1665" height="9.33398" ai:objID="10da2680" ai:seqID="25">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="862.673" y="691.333" width="24" height="15" ai:objID="10da2200" ai:seqID="26">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="849.006" y="730.333" width="22" height="13" ai:objID="10da2080" ai:seqID="27">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Rect x="1059.34" y="703" width="11" height="14.333" ai:objID="10da1c00" ai:seqID="28">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="1090.01" y="702" winding="nonZero" ai:objID="10da1a80" ai:seqID="29" data="M0 0 13 0 13 15.333 9 15.333 9 16.75 4.66699 16.75 3.66699 15.333 0 15.333 0 0Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1107.67" y="703" winding="nonZero" ai:objID="10da1780" ai:seqID="30" data="M0 14.333 3 14.333 3 15.75 7.5 15.75 7.5 14.333 10.167 14.333 10.167 0 0 0 0 14.333Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1084.01" y="675" winding="nonZero" ai:objID="10da1480" ai:seqID="31" data="M0 18.333 11.334 18.333 11.334 4.33301 8 4.33301 6 0 2.33398 0 2.33398 3 0 3 0 18.333Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1100.67" y="675" winding="nonZero" ai:objID="10da1180" ai:seqID="32" data="M0 18.333 10 18.333 10 5 5 5 5 0 2.33301 0 2.33301 3.33301 0 4 0 18.333Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1029.01" y="814.334" winding="nonZero" ai:objID="10da0e80" ai:seqID="33" data="M0 0 0 14.333 41.334 13.333 41.334 0 0 0Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1485.67" y="333.333" winding="nonZero" ai:objID="10da0d00" ai:seqID="34" data="M0 12.6667 5.66699 6.66666 25.667 6.66666C25.667 6.66666 39.666 -8.33334 58 6.66666 58 6.66666 69 21.6671 55 36.0002 55 36.0002 41 46.0002 27 33.6667L9.33398 31.3332 0 26.0002 0 12.6667Z" id="p40">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="163.673" y="274.667" winding="nonZero" ai:objID="10da0a00" ai:seqID="35" data="M4.6665 3.33301 19.3296 7.33301 22.333 0 30 1.99951 34.6665 3.6665 34.6665 8.99951 38.3286 10.5C38.3286 10.5 40 21.666 35 22.9995L21.6318 21 11.8267 22.9995 0 21 4.6665 3.33301Z" id="p6">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="182.972" y="252.667" winding="nonZero" ai:objID="10da0700" ai:seqID="36" data="M9.70166 0 17.6978 2.50049 15.3682 10.3335 28.0308 15 24.0347 30.667C24.0347 30.667 17.6938 30 17.6978 27.3335L15.0347 22.0005 6.02881 18 0 15.3335 1.36816 7.66699 6.02881 8.3335 9.70166 0Z" id="p5">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="112.006" y="276" winding="nonZero" ai:objID="10d9fc80" ai:seqID="37" data="M3.66064 12 3.66064 16.6665 0 16.6665 3.66064 26.6665 12.3335 21.6665 12.3335 33 21.667 37.3335 26.9966 4.3335 13.4985 0 13.4985 9.16699 3.66064 12Z" id="p9">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="69.6694" y="83" winding="nonZero" ai:objID="10d9f980" ai:seqID="38" data="M2.67041 72 0 0 37.0039 0 42.3369 72 2.67041 72Z" id="p33">
+				<s:fill>
+					<s:SolidColor color="#009444"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#006838"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="809.66" y="868.611" winding="nonZero" ai:objID="10d9f680" ai:seqID="39" data="M0.0160522 79.3888 25.0161 11.0558C25.0161 11.0558 37.0161 -6.61218 54.0161 2.7218 54.0161 2.7218 72.6826 9.05579 71.6826 25.0558L46.6826 93.3888C46.6826 93.3888 38.3491 110.055 19.6826 101.722 19.6826 101.722 -0.650452 96.0558 0.0160522 79.3888Z" id="p35">
+				<s:fill>
+					<s:SolidColor color="#009444"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#006838"/>
+				</s:stroke>
+			</s:Path>
+			<s:Rect x="788.838" y="838" width="9.17139" height="17.667" ai:objID="10d9f500" ai:seqID="40" id="p32">
+				<s:fill>
+					<s:SolidColor color="#27AAE1"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#1C75BC"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="676" y="648.5" winding="nonZero" ai:objID="10d9f080" ai:seqID="41" data="M0 41.833C0 41.833 48 31 57.5 0 57.5 0 56.3418 45.5 102.671 73.5 102.671 73.5 34.5 34.666 0 41.833Z">
+				<s:fill>
+					<s:SolidColor color="#8DC63F"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#009444"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="66.334" y="438.333" winding="nonZero" ai:objID="10d9ed80" ai:seqID="42" data="M0 16 24.6665 25.333 30.6665 10 6 0 0 16Z" id="p22">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="115.667" y="83" winding="nonZero" ai:objID="10d9e180" ai:seqID="43" data="M0 0 28.6689 2 28.6689 33.5 1.16699 33.5 0 0Z">
+				<s:fill>
+					<s:SolidColor color="#009444"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#006838"/>
+				</s:stroke>
+			</s:Path>
+			<s:Rect x="116.834" y="119" width="25.4712" height="26" ai:objID="10d9e000" ai:seqID="44">
+				<s:fill>
+					<s:SolidColor color="#009444"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#006838"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="269.167" y="397.833" winding="nonZero" ai:objID="10d97e80" ai:seqID="45" data="M7.17285 0 0 2.16699 1.50635 10.8335 20.5 17.167 29.1729 8.5835 16.8394 1.50049 7.17285 0Z" id="p29">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="202.333" yFrom="261.583" xTo="204.667" yTo="260.185" ai:objID="10d97100" ai:seqID="46">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="207.333" yFrom="244.583" xTo="210.323" yTo="244.583" ai:objID="10d96f80" ai:seqID="47">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="22.4797" winding="nonZero" ai:objID="10db3a00" ai:seqID="48" data="M1687.02 0 1655.02 75.5C1639.02 111.5 1647.02 125.5 1647.02 125.5L1673.52 213.5C1685.02 273 1645.02 303 1645.02 303L1561.52 380.5 1469.02 437.5C1445.52 458 1440.52 499.5 1440.52 499.5 1433.02 519 1429.52 566.5 1429.52 566.5 1431.52 587.5 1437.52
+					613.5 1437.52 613.5L1444.02 645.667C1454.52 684.334 1437.52 710.375 1437.52 710.375 1422.02 740.25 1353.52 781.834 1353.52 781.834L1216.02 846.834C1235.02 933.668 1292.52 931.5 1292.52 931.5 1320.52 939.5 1365.52 965.5 1365.52 965.5 1368.52 967
+					1398.52 995.5 1398.52 995.5L1421.02 1016.5 1479.52 1080 1467.52 1080 1346.02 972.666C1246.52 938.332 1241.52 929.333 1241.52 929.333 1228.52 921.666 1200.52 847.667 1200.52 847.667L1099.52 888.5C976.52 942 941.52 914 941.52 914L770.944 757.5
+					C731.868 709 703.02 703 703.02 703 652.007 689.53 552.52 728.5 552.52 728.5 508.02 741 484.52 725 484.52 725 425.52 665 312.521 588.5 312.521 588.5 203.021 493 116.523 517.667 116.523 517.667 -14.4738 551.833 0.520298 378.667 0.520298 378.667
+					0.520298 368.833 10.8557 319.667 10.8557 319.667L22.5203 272C23.5203 252 43.1897 203 43.1897 203 131.359 101.5 198.19 159.5 198.19 159.5 225.859 167 292.52 276 292.52 276 320.02 331.5 372.19 310.333 372.19 310.333L513.02 196.5C547.52 164 570.52
+					192.5 570.52 192.5L613.52 250.5C635.02 272.5 636.02 290.5 636.02 290.5 623.02 367 650.52 385 650.52 385L704.02 429.5C752.52 458.5 752.52 506.5 752.52 506.5L724.52 613C703.52 683.5 747.52 710.166 747.52 710.166L783.858 745.333 906.525 863.5C954.029
+					915 982.52 911 982.52 911L1053.02 885C1063.02 849 1099.52 868.611 1099.52 868.611L1201.02 828.667C1201.02 816.834 1159.52 797.5 1159.52 797.5 1145.02 787.5 1148.52 777.166 1148.52 777.166L1153.02 777.166C1152.52 794.832 1181.02 803 1181.02 803
+					1200.02 809.5 1209.52 824.5 1209.52 824.5L1308.52 781.834 1379.52 743.333C1409.02 736.166 1429.52 691.333 1429.52 691.333 1433.52 656.166 1424.02 632 1424.02 632 1411.02 565 1415.52 560 1415.52 560 1415.52 519 1434.52 467.5 1434.52 467.5 1437.02
+					452 1477.02 414.5 1477.02 414.5 1485.02 402 1558.52 367.5 1558.52 367.5 1585.02 347 1635.02 290.5 1635.02 290.5 1671.02 268 1659.02 215 1659.02 215 1626.02 143 1628.52 105.5 1628.52 105.5 1628.52 79 1673.52 0 1673.52 0L1687.02 0ZM714.02 619.5
+					744.52 502C744.52 502 741.02 465.167 723.52 454.333L645.52 392.5C645.52 392.5 625.52 373.5 626.52 339L626.484 294.667C626.484 294.667 626.52 281.667 614.52 263.583L563.02 199.449C563.02 199.449 547.02 176.397 520.52 199.449L400.52 302.5C400.52
+					302.5 374.02 324.167 342.52 323.833 342.52 323.833 315.02 320.834 295.02 295.667L219.687 201.5C219.687 201.5 186.692 148.833 121.856 163.667 121.856 163.667 66.0203 181.167 52.0203 221.333L38.8557 257.5C38.8557 257.5 36.0203 288.667 32.5203 300.333
+					32.5203 300.333 19.5203 334.5 19.0203 339 19.0203 339 8.52518 360.833 15.5227 406.417 15.5227 406.417 19.9949 440.775 34.5208 477.333 34.5208 477.333 47.8592 499 96.1897 511 96.1897 511 158.854 500.5 187.187 504.5 187.187 504.5 233.854 513 267.187
+					536.5L339.02 588C339.02 588 368.617 564.51 378.819 515.505 378.819 515.505 379.52 505.5 375.52 502L374.02 489.5C374.02 489.5 374.35 475.5 380.185 473 380.185 473 403.858 496.5 390.189 524.5 390.189 524.5 403.02 529.5 428.52 499L474.52 431 483.02
+					424.833 480.52 431 438.853 497.01C438.853 497.01 419.52 526.334 393.52 530.667L372.19 547C372.19 547 357.188 587 345.854 589 345.854 589 338.52 591.5 364.52 607 364.52 607 467.52 684.666 486.02 706.333 486.02 706.333 504.52 735.5 592.02 702.5
+					592.02 702.5 657.181 687.535 688.02 667.5 688.02 667.5 703.02 649.5 714.02 619.5Z">
+				<s:fill>
+					<s:SolidColor color="#FBB040"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#F7941E"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="131.336" y="467.333" winding="nonZero" ai:objID="10db3100" ai:seqID="49" data="M0 0 55.6704 10 103.664 6.25049" id="r1321" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="206.333" yFrom="291.583" xTo="208.333" yTo="291.807" ai:objID="10d97580" ai:seqID="50">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Ellipse x="943.339" y="816.288" width="4.66699" height="4.16602" ai:objID="10d98600" ai:seqID="51">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Line xFrom="104.333" yFrom="159.583" xTo="78.3335" yTo="173.583" ai:objID="10dad880" ai:seqID="52" id="r033" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="69.3335" y="173.583" winding="nonZero" ai:objID="115f6d80" ai:seqID="53" data="M9 0 12.3335 2.0835 18.6665 11.1411 15.6665 36.9165 11.0024 42.9165 7.66943 50.4165 6.6665 68.9165 2.3335 74.0835 0 80 36 100" id="r01" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="69.6694" y="221.333" winding="nonZero" ai:objID="10d95a80" ai:seqID="54" data="M2.66455 57 13.9976 57 13.9976 67.6665 25.3311 67.6665 25.3311 57 31.3311 57 31.3311 46.333 35.9976 46.333 45.9976 46.333 45.9976 31.6665 35.9976 31.6665 35.9976 25.6665 45.9976 20.333 35.9976 7.6665 32.3335 11 25.3311 9 24.3311 1.33301 9.99756
+					0 6 27.333 8.3335 30 7.3335 32 5 33.8335 4.6665 40.333 0 44.333 2.6665 50.6665 2.66455 57Z" id="p1">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="105.333" yFrom="273.583" xTo="121.333" yTo="283.583" ai:objID="115f1f80" ai:seqID="55" id="r19" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="121.333" y="264.5" winding="nonZero" ai:objID="11020280" ai:seqID="56" data="M0 19.0835 0 12 4.17139 7 17.6694 10.167 29.6729 16.167 34 7.5 36.3335 0 51.3354 6.79199 58 6.79199 65.6729 7 74.2339 9.0835 79.3359 15.5 83.3335 19.0835 85 27.0835" id="r69" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="202.333" y="261.583" winding="nonZero" ai:objID="1101c200" ai:seqID="57" data="M4 30 8.66895 22 13.0024 14.4165 13.0024 7.0835 10.3335 2.4165 0 0" id="r56" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="105.333" y="242.5" winding="nonZero" ai:objID="11019c80" ai:seqID="58" data="M97 19.0835 99.3335 10.8335 91.6538 7.8335 87.6689 7.8335 81.6729 9 70.1665 7.8335 47.6665 0 41.3335 0 35.6665 2.0835 30 2.0835 30 7.8335 30 17 23.6689 21.0835 18.3335 22 16 26.167 11.5005 29 0 31.0835" id="r59" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="202.333" y="244.583" winding="nonZero" ai:objID="11019380" ai:seqID="59" data="M0 17 4.33984 13.4585 5 0" id="r35" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="207.333" y="231.333" winding="nonZero" ai:objID="11017b80" ai:seqID="60" data="M0 13.25 5.33545 8 10.333 0 14 0 28.5015 0 34.833 2.6665 48.8398 9.1665 48.8398 13.25 53.6665 19 53.6665 23.8335 56 35.25" id="r38" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="207.333" y="244.583" winding="nonZero" ai:objID="11017e80" ai:seqID="61" data="M0 0 3.66895 8.08301 5.3335 10.5835 11.3359 14.9165 11.3359 19 13.3359 19.9165 19.1665 22 25.6694 24.0835 30 29 30 34" id="r327" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="237.333" y="266.583" winding="nonZero" ai:objID="11015900" ai:seqID="62" data="M0 12 8.00635 9.9165 13.6665 10 23.6665 7 26 0" id="r827" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="263.333" y="266.583" winding="nonZero" ai:objID="11014880" ai:seqID="63" data="M0 0 8.5 2.0835 18.9829 7 27.667 5.4165 32.6665 7 53.6636 7 55.5 12 59.0005 18.5835 62.1665 22.4165 70 25" id="r28" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="237.333" y="278.583" winding="nonZero" ai:objID="11165380" ai:seqID="64" data="M0 0 13.6665 0.5 21.6689 4.75 23.6665 13 23.1133 17.0835 23.1133 22.9165 26 25.4165 34.167 25.4165 34.167 36 34.167 57.0835" id="r427" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="247.673" y="335.667" winding="nonZero" ai:objID="11023580" ai:seqID="65" data="M23.8271 0 21.4937 3.33301 15.6602 3.33301 13.3267 5.83301 8.5 8.6665 0 10.916" id="r425" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="236.333" y="326.583" winding="nonZero" ai:objID="115f5e80" ai:seqID="66" data="M11.3398 19.9995 5.83301 12.4165 3.3335 7 0 0" id="r725" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="179.333" y="312.5" winding="nonZero" ai:objID="10dac800" ai:seqID="67" data="M29 2.0835 17.5063 0 12.1665 4.16699 10.0063 12 10.0063 16.167 9.66699 24.083 7.67285 28.625 0 40.0835" id="r726" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="196.84" y="314.583" winding="nonZero" ai:objID="10d95c00" ai:seqID="68" data="M11.4937 0 3.82959 0 0.147461 1.4165 0 5.08301 0 9.25 3.82959 14.0835 7.16016 17.9585 10.4937 23.167 11.4937 26.5415 12.8271 29.916 14.1626 35.9165 15.8271 43.75 13.4937 50" id="r728" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="210.333" yFrom="364.583" xTo="269.167" yTo="396.833" ai:objID="115f0600" ai:seqID="69" id="r2829" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="166.333" y="364.583" winding="nonZero" ai:objID="1101aa00" ai:seqID="70" data="M44 0 42 3.75 39.6665 7.9165 37.1665 11.75 30.6538 11.75 20.6729 11.75 15.3335 11.75 5.6665 11 0 12" id="r1528" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="143.333" y="374.583" winding="nonZero" ai:objID="115f1980" ai:seqID="71" data="M23 2 17.6694 2.0835 12 4.0835 5.6665 1 0 0" id="r1415" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="166.333" y="352.583" winding="nonZero" ai:objID="115ee080" ai:seqID="72" data="M13 0 10.6665 5.24951 6.33545 9.9165 6.33545 14.0835 3.00635 18 0 24" id="r1526" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="144.333" y="376.583" winding="nonZero" ai:objID="11018480" ai:seqID="73" data="M22 0 19.6665 4.12451 19.6665 8.4165 16.6694 12.9165 13.3335 16.7012 11 22.333 8.16553 29.1665 0 32" id="r1517" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="203.5" y="291.583" winding="nonZero" ai:objID="115f7680" ai:seqID="74" data="M2.8335 0 1.5 6.08301 1.16699 8.75 0 13.4165 4.8335 23" id="r67" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Ellipse x="206" y="312.5" width="4.66699" height="4.16699" ai:objID="10d9bc00" ai:seqID="75">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Line xFrom="144.333" yFrom="408.583" xTo="141.333" yTo="421.583" ai:objID="115ef400" ai:seqID="76" id="r1718" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="144.333" yFrom="408.583" xTo="156.333" yTo="419.583" ai:objID="11013e00" ai:seqID="77" id="r1617" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="141.333" yFrom="421.583" xTo="156.333" yTo="419.583" ai:objID="10d95900" ai:seqID="78" id="r1618" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="103" y="413.667" winding="nonZero" ai:objID="11014280" ai:seqID="79" data="M38.3335 7.91699 13.834 0.416992 9.00635 0 3.66699 2.875 0 11.8335" id="r1819" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="103" yFrom="425.5" xTo="97.3335" yTo="457.583" ai:objID="115f2400" ai:seqID="80"  id="r1922" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			
+			<s:Line xFrom="135.333" yFrom="454.583" xTo="131.336" yTo="467.333" ai:objID="115ed000" ai:seqID="82" id="r2021" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="131.336" yFrom="467.333" xTo="97.3335" yTo="457.583" ai:objID="10d97700" ai:seqID="83" id="r2122" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="57.0005" y="457.583" winding="nonZero" ai:objID="10da5d80" ai:seqID="84" data="M40.333 0 37.9995 9.75 30.333 11.8335 20.0024 11.8335 0 11.8335" id="r2242" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="20.6689" y="469.417" winding="nonZero" ai:objID="10da6f80" ai:seqID="85" data="M36.3315 0 12.6665 2.9165 0 19.583" id="r2342" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="20.6689" y="489" winding="nonZero" ai:objID="115f7380" ai:seqID="86" data="M0 0 6.83105 8.00977 18.166 14.167 33.998 22 43.665 35.9521 59.667 42.749 71.999 60.4844" id="r2324" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="284.333" y="369.083" winding="nonZero" ai:objID="115f6000" ai:seqID="87" data="M0 14.4263 2.6665 7.5835 11.6665 8.5835 15.6665 0 20 3.4165 17.6665 15.9165 0 14.4263Z" id="p31">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="269.167" yFrom="396.833" xTo="291.333" yTo="387" ai:objID="115f3a80" ai:seqID="88" id="r2931" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="291.333" yFrom="387" xTo="308.333" yTo="392.583" ai:objID="1101c080" ai:seqID="89" id="r3031" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="315" y="491.083" winding="nonZero" ai:objID="115ec400" ai:seqID="90" data="M0 0 0 7.9165 15.9995 12.0835 23.8335 15.4165 29.9995 15.4165 43.9995 20.2695 53.3335 17.9165 58.3354 10" id="r1112" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="306" y="491.083" winding="nonZero" ai:objID="10dab300" ai:seqID="91" data="M9.00049 0 2.3335 5.33545 0 10.1348 11.334 32.9165 21 52.5835 29.667 71.6353" id="r1143" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="259.587" y="396.833" winding="nonZero" ai:objID="10da8c00" ai:seqID="92" data="M9.58008 0 0 2.0835 0 13.834 0 24.7505 0 30.7505 3.07959 32.792 3.75293 38.8335 5.41309 45.751" id="r2944" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="233" y="442.584" winding="nonZero" ai:objID="11021180" ai:seqID="93" data="M32 0 40.834 3.58301 45.0063 11.9995 45.0063 19.8745 38.5005 26.833 23.1733 32.416 0 32" id="r1344" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="265" y="442.584" winding="nonZero" ai:objID="11021a80" ai:seqID="94" data="M0 0 8.83398 0 15.25 8.41602 15.25 22.666 18.7534 34.7495 18.7534 42.416 18.7534 48.4995 27.3369 53.835 33.3398 53.835 50.0005 48.4995" id="r1144" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="233" y="474.584" winding="nonZero" ai:objID="115f0780" ai:seqID="95" data="M0 0 7.66943 12.3325 17.0068 14.416 29.6665 14.416 38.5005 14.416 45.0063 18.583 47.25 21.835 51.3335 26.6343 69 24.416 82.0005 16.4995" id="r1113" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="29" y="155" winding="nonZero" ai:objID="11017a00" ai:seqID="96" data="M234.333 111.583 238.333 104.5 238.333 95.3335 235.377 76.3335 233.667 56 213.003 29.7246 196.5 16.5 152.667 0 127.333 0 102.836 6.66699 68.0005 23 49.3335 41 35.334 68.5835 9.83496 168.833 0 225.667 4.33545 269.833 12.5 296 28.0005 314.417" id="r842" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="54.667" y="469.417" winding="nonZero" ai:objID="11020d00" ai:seqID="97" data="M2.3335 0 0 13.25 14.833 29.583 32.833 38.083 67.5 46.0879 88.1665 46.0879 105.506 41.583 118.167 41.583 186.002 49.8252 209.71 64.583 224.667 74.25 243.673 82.1514 258 93.3018 281 93.3018" id="r4243" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="335.667" y="562.719" winding="nonZero" ai:objID="1101c500" ai:seqID="98" data="M0 0 8.50098 25.2813 35.3354 40.7813 62.333 65.2813 106.333 96.2813 136.833 124.781 178.833 159.281 209.333 162.781 330.833 136.114 397.225 131.281 424.333 147.781 457.757 180.614 492.004 210.281 531.339 239.948" id="r3843" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="867.006" yFrom="802.667" xTo="893.781" yTo="795.788" ai:objID="10dae480" ai:seqID="99" id="r3845" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Line xFrom="893.781" yFrom="795.788" xTo="908.781" yTo="810.788" ai:objID="11017d00" ai:seqID="100" id="r3645" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="945.673" y="818.371" winding="nonZero" ai:objID="10d97d00" ai:seqID="101" data="M0 0 2.3335 6.5 11.5459 6.5 21.3271 6.5 32.3271 12.3789" id="r3637" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Line xFrom="867.006" yFrom="802.667" xTo="798.332" yTo="843.667" ai:objID="115ee500" ai:seqID="102" id="r3238" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Line>
+			<s:Path x="735.338" y="843.667" winding="nonZero" ai:objID="10dae900" ai:seqID="103" data="M62.9941 0 65.3276 17.8789 65.3276 29 16.1621 75.8887 0 77.9717" id="r3234" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="735.338" y="896.667" winding="nonZero" ai:objID="11015d80" ai:seqID="104" data="M0 24.9717 36.1621 32.666 53.5 27.0547 60.6606 7.33301 78.3276 0" id="r3435" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="867.006" y="802.667" winding="nonZero" ai:objID="10db3880" ai:seqID="105" data="M0 0 12.3335 18.833 66.25 72.833 113.328 107.833 154.494 113.333 182.667 96.083 203.334 89.833 229.5 60.9619" id="r3839" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1096.51" y="639" winding="nonZero" ai:objID="10d95f00" ai:seqID="106" data="M0 224.629 16.25 229.611 35.5801 232.333 258.494 145.5 314.494 111 338.494 89 360.994 59.833 363.494 36 369.994 0" id="r3941" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1446.5" y="358.05" winding="nonZero" ai:objID="115f4e00" ai:seqID="107" data="M20 280.95 0 235.45 6 161.95 10 128.95 31 88.4502 72.5 56.4502 121.5 23.9502 133.5 15.1099 123.5 2.08301 111 2.08301 100.707 0" id="r4041" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="143.915" y="319.004" ai:objID="1115fc80" ai:seqID="108" data="M0 14.5156C2.11865 15.8169 3.61572 15.0415 6.08447 16.5391 6.11768 17.4419 5.21338 17.3672 5.52832 18.5688 7.41406 18.7651 8.91943 17.9536 10.5039 17.1211 8.18408 19.2134 9.95801 22.2588 13.5479 22.9248 13.4302 22.5664 13.1978 22.3291 12.7241
+					22.3462 13.1406 21.4673 13.937 22.5894 14.6592 22.3462 14.3643 19.1934 18.3145 19.729 20.4639 23.5083 19.1138 16.5923 21.6323 21.814 22.4014 26.4082 23.1338 26.3071 23.3369 25.6494 23.5103 24.9604 24.2339 24.8667 24.4175 25.3594 24.3379 26.1157
+					24.6377 25.2778 27.6558 24.5122 26.8242 24.376 25.8823 23.2417 25.0303 22.0024 22.9556 22.0576 23.4795 18.9775 25.6396 19.2056 26.2764 22.6343 26.6216 22.5664 26.5518 22.0576 26.2764 22.0576 28.561 20.4023 24.1875 15.8218 22.4014 20.021 22.8652
+					14.1831 34.0928 19.6504 29.5933 9.86865 28.8887 13.9658 34.5166 10.7544 30.7002 9.28711 32.667 7.70605 34.2964 8.50586 35.6758 9.86865 35.564 7.06055 32.6606 8.61182 31.2544 7.54688 31.5449 7.38721 32.373 7.29102 33.46 7.25635 29.1172 8.82129
+					31.312 4.01221 26.8242 4.64258 26.5278 4.57129 26.6372 4.06348 26.2764 4.06006 31.2109 2.14355 28.8555 3.82764 26.2764 0 25.1167 2.89063 22.0156 4.06006 18.251 3.19141 20.4751 7.72314 8.65576 6.17578 6.36475 8.70264 6.31152 9.72119 7.29541 9.66016
+					7.46484 10.4458 6.12451 10.9058 2.4541 11.2183 3.87256 7.83545 -0.225098 11.1436 1.03662 13.6445 0 14.5156Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="107.667" y="467.333" winding="nonZero" ai:objID="10d9a700" ai:seqID="109" data="M0 10 0 0 22.3345 0 33.333 12.1665 25.333 15.3335 0 10Z" id="p21">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="139.003" y="319.667" winding="nonZero" ai:objID="10c10700" ai:seqID="110" data="M0 19.3335 3.33301 13 28.333 19.3335 33.333 8 24 4.66699 25.333 0 29 0 31 0 33.333 0 33.333 1.66699 39.6665 3 44 5.3335 30.333 38.667 5.33301 31.667 7.6665 23.3335 0 19.3335Z" id="p26">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="118.669" y="380.667" winding="nonZero" ai:objID="10c10b80" ai:seqID="111" data="M19 34.3335 23.6665 21.667 29 23.667 36.3335 9.66699 17.6665 0 12.6665 11 8.6665 10 0 27.667 19 34.3335Z" id="p17">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="452.47" y="454.419" ai:objID="10d96380" ai:seqID="112" data="M0 1.70508C0.831055 2.6709 1.70605 2.70313 2.67822 3.8208 2.54102 4.17383 2.10449 3.94531 2.05664 4.47559 2.95996 4.96631 3.84521 4.98682 4.77393 5.01709 3.26611 5.30713 3.62988 6.86426 5.29883 7.91064 5.30176 7.74707 5.22656 7.60449 4.98877 7.50732
+					5.34473 7.2627 5.54932 7.86816 5.94922 7.93359 6.33838 6.66162 8.20947 7.73682 8.63477 9.65771 9.13916 6.71143 9.50293 9.26611 9.104 11.1948 9.48486 11.3179 9.69775 11.1104 9.90088 10.8848 10.2764 11.0083 10.2827 11.2378 10.1152 11.5098 10.4063
+					11.2544 12.0361 11.6265 11.6465 11.3911 11.3711 10.749 11.1587 10.0869 10.1187 9.65039 10.9019 8.58691 11.936 9.1499 11.6694 10.6035 11.8525 10.6533 11.9048 10.4429 11.7676 10.3823 13.1836 10.252 11.79 7.53467 10.189 8.74902 11.4116 6.61475 16.0586
+					11.1831 15.4858 6.44531 14.4395 7.85938 17.7798 7.86914 16.1338 6.46631 17.3799 6.29395 18.0527 6.95898 18.5063 7.78516 18.9282 6.68506 17.2227 6.63916 16.7051 5.92188 16.8765 5.9248 17.3037 6.0708 17.8496 6.29639 15.4272 5.93945 17.334 4.58105
+					14.9985 3.83398 14.8633 3.74072 15.0039 3.5708 14.8257 3.48975 17.6011 3.84326 16.146 3.96924 15.5151 1.93457 14.4482 2.78662 12.71 2.55078 10.9873 1.38916 11.3223 3.61475 5.71533 0.417969 4.14746 0.880859 3.94873 1.25977 4.44775 1.45313 4.39795
+					1.7915 3.65479 1.67188 1.77832 0.98291 3.05811 0 0.460938 0.36377 0.662598 1.6001 0 1.70508Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="278.006" y="348.667" winding="nonZero" ai:objID="10da0280" ai:seqID="113" data="M0 6.66699 0 12.8335 8 13.3335 8 18.3335 19.667 18.3335 21.9937 12.5005 26 12.5005 28.6606 5.66699 14.3306 4 14.3306 0 11.6606 4 0 6.66699Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="220.669" y="274.667" winding="nonZero" ai:objID="10da5380" ai:seqID="114" data="M0 12.6665 24.3306 21 30.3306 8 21.4971 5 20 8 11.6641 7.33301 11.6641 2 5.66406 0 0 12.6665Z" id="p27">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="187.006" y="352.667" winding="nonZero" ai:objID="10d9de80" ai:seqID="115" data="M0 13 5.3335 14.3335 5.3335 16.2505 15.2642 18.667 19.667 2.66699 9.8335 0 7.66699 7.3335 1.99414 7.3335 0 13Z" id="p28">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="903.006" y="800" winding="nonZero" ai:objID="10da2800" ai:seqID="116" data="M0 12.333 0 26 25.998 26 25.998 28.667 40.333 28.667 40.333 3.66699 29.6665 2 29.6665 0 14.6665 0 14.6665 5.66699 14.333 9 14.6665 11.333 0 12.333Z" id="p36">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="975.666" y="832.834" winding="nonZero" ai:objID="10d98300" ai:seqID="117" data="M0 1.35156 45.834 0 45.834 21.166 0 21.166 0 1.35156Z" id="p37">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="817.004" y="698.833" winding="nonZero" ai:objID="10da1f00" ai:seqID="118" data="M0 39.834 24.002 39.834 24.002 23.5 40.335 23.5 40.335 10.5 36.335 7.5 36.335 0 15.6685 0 14.6685 22.5 0 22.834 0 39.834Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="879.339" y="770" winding="nonZero" ai:objID="10da2500" ai:seqID="119" data="M9 0 27.3335 0 27.3335 18 23.667 18 23.667 23.667 11.667 23.667 0 23.667 0 4.66699 8.66699 4.66699 9 0Z" id="p45s">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="1592" ai:objID="11019200" ai:seqID="120" data="M176 1 176 72 176 96.5 176 144.5 176 195.5 176 303.5 176 412 176 508 173 559.5 163.5 624 154 676 135.5 760 114 835.4 86.5 903.5 25 1081 0 1080 61.5 902.5 89 834.4 110.5 759 129 675 138.5 623 148 558.5 151 507 151 411 151 302.5 151 194.5 151 143.5
+					151 95.5 151 71 151 0 176 1Z">
+				<s:fill>
+					<s:SolidColor color="#6D6E71"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#58595B"/>
+				</s:stroke>
+			</s:Path>
+			
+			<s:Ellipse x="102" y="157.5" width="4.66699" height="4.16699" ai:objID="10d9c980" ai:seqID="121">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="76" y="171.5" width="4.66699" height="4.16699" ai:objID="10d9c680" ai:seqID="122">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="70" y="252.5" width="4.66699" height="4.16699" ai:objID="10d96200" ai:seqID="123">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="101" y="270.5" width="4.66699" height="4.16699" ai:objID="11017280" ai:seqID="124">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="119" y="281.5" width="4.66699" height="4.16699" ai:objID="10d9c200" ai:seqID="125">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="204" y="289.5" width="4.66699" height="4.16699" ai:objID="10d9bd80" ai:seqID="126">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="200" y="259.5" width="4.66699" height="4.16699" ai:objID="10d9bf00" ai:seqID="127">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="205" y="242.5" width="4.66699" height="4.16699" ai:objID="10d9c080" ai:seqID="128">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="235" y="276.5" width="4.66699" height="4.16699" ai:objID="10d9ba80" ai:seqID="129">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="261" y="264.5" width="4.66699" height="4.16699" ai:objID="10d9b900" ai:seqID="130" id="p8">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="269.167" y="315.5" width="4.66699" height="4.16699" ai:objID="115f2e80" ai:seqID="131">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="331" y="289.5" width="4.66699" height="4.16699" ai:objID="10d9b780" ai:seqID="132">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="269.167" y="333.583" width="4.66699" height="4.16699" ai:objID="10d99200" ai:seqID="133">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="245.34" y="344.5" width="4.66699" height="4.16699" ai:objID="10d98f00" ai:seqID="134">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="234" y="324.5" width="4.66699" height="4.16699" ai:objID="10daa100" ai:seqID="135">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="208" y="362.5" width="4.66699" height="4.16699" ai:objID="10d9b480" ai:seqID="136">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="177" y="350.5" width="4.66699" height="4.16699" ai:objID="10d9b600" ai:seqID="137">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="164" y="374.5" width="4.66699" height="4.16699" ai:objID="115f0900" ai:seqID="138">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="141" y="372.5" width="4.66699" height="4.16699" ai:objID="10d9b300" ai:seqID="139">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="154" y="417.5" width="4.66699" height="4.16699" ai:objID="11014e80" ai:seqID="140">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="142" y="406.5" width="4.66699" height="4.16699" ai:objID="10d9ad00" ai:seqID="141">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="140" y="420.5" width="4.66699" height="4.16699" ai:objID="10d9ab80" ai:seqID="142">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="129.002" y="465.25" width="4.66699" height="4.16699" ai:objID="10d9a580" ai:seqID="144">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="100.667" y="423.417" width="4.66699" height="4.16699" ai:objID="10d99f80" ai:seqID="145">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="95" y="455.5" width="4.66699" height="4.16699" ai:objID="10d9a880" ai:seqID="146">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="54.667" y="467.333" width="4.66699" height="4.16699" ai:objID="10d9a400" ai:seqID="147" id="p42">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="90.3345" y="547.4" width="4.66699" height="4.16797" ai:objID="10d9a100" ai:seqID="148">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="18.3354" y="486.917" width="4.66699" height="4.16699" ai:objID="10d9a280" ai:seqID="149">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="230.667" y="472.5" width="4.66699" height="4.16699" ai:objID="10daf980" ai:seqID="150">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="312.667" y="489" width="4.66699" height="4.16699" ai:objID="10d99c80" ai:seqID="151">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="371.002" y="499" width="4.66699" height="4.16699" ai:objID="10d99b00" ai:seqID="152">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="333.333" y="560.635" width="4.66699" height="4.16797" ai:objID="10d99980" ai:seqID="153" id="p43">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="266.833" y="394.75" width="4.66699" height="4.16699" ai:objID="10d99380" ai:seqID="154">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="289" y="384.917" width="4.66699" height="4.16699" ai:objID="115f2700" ai:seqID="155">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="306" y="390.5" width="4.66699" height="4.16699" ai:objID="1101cf80" ai:seqID="156">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="975.666" y="828.667" width="4.66797" height="4.16602" ai:objID="10d98480" ai:seqID="157">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="906.448" y="808.705" width="4.66699" height="4.16602" ai:objID="10d98780" ai:seqID="158">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="891.448" y="793.705" width="4.66699" height="4.16602" ai:objID="11018900" ai:seqID="159">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="864.672" y="800.584" width="4.66699" height="4.16602" ai:objID="11016980" ai:seqID="160" id="p38">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="795.999" y="841.584" width="4.66699" height="4.16602" ai:objID="10d98d80" ai:seqID="161">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="811.332" y="894.584" width="4.66699" height="4.16602" ai:objID="10d98a80" ai:seqID="162">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="733.004" y="919.556" width="4.66699" height="4.16602" ai:objID="10da6c80" ai:seqID="163">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="1094.17" y="861.546" width="4.66797" height="4.16602" ai:objID="10db3400" ai:seqID="164" id="p39">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="1464.17" y="636.917" width="4.66797" height="4.16602" ai:objID="10d98180" ai:seqID="165" id="p41">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="1544.87" y="355.967" width="4.66797" height="4.16602" ai:objID="10d98000" ai:seqID="166">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Path x="131.336" y="161.252" ai:objID="10dae180" ai:seqID="167" data="M33.5527 59.9148 9.92725 51.468 12.3242 40.3279 9.09229 32.4636 5.64941 27.1848 0.513672 19.2658 0 13.0193 0.513672 7.71506C0.513672 7.71506 35.9604 -9.64383 67.438 7.71506 67.438 7.71506 84.9937 11.3474 100.875 32.4636L100.055 37.2146 88.6797
+					37.2146 86.2856 45.1335 66.936 37.7429 64.9629 32.4636 60.8828 32.4636 51.7007 43.0217 48.6216 48.3005 46.2808 50.9402 38.3467 59.9148 33.5527 59.9148Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="172.669" y="192" winding="nonZero" ai:objID="10d9ea80" ai:seqID="168" data="M2.83105 54 5.3335 43.6665 10.334 46 12 40.3335 2.83105 37 2.83105 29.3335 0 23.3335 6 20.3335 13.6665 7.44873 9 5.3335 8.3335 0 23.3335 3.3335 22 13.3335 41.3335 20.3335 47 7.44873 58.6665 10.6665 49.3335 34.5 44.9976 34.5 40 47.3335 29.333 43.6665
+					26.6665 54 22.6665 54 20.3335 58.3335 2.83105 54Z" id="p3">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="94.7416" y="168.56" ai:objID="10da5c00" ai:seqID="169" data="M0.284241 26.9404C0.284241 26.9404 22.9673 4.89307 36.6295 0L42.0943 18.4404C42.0943 18.4404 27.3414 25.4404 30.7086 38.4404L31.5089 43.9546 17.8965 47.4404C17.8965 47.4404 -2.63519 29.6904 0.284241 26.9404Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="119" y="218" ai:objID="11157280" ai:seqID="170" data="M0 5.5835 2.3335 0 7.41895 5.5835 9.92627 8.5 9.92627 13.3335 5.3335 13.3335 0 5.5835Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="87.2906" y="199.449" ai:objID="11402f00" ai:seqID="171" data="M0.0429077 13.0654C0.0429077 13.0654 -0.837463 1.4082 5.37738 0L14.7094 9.05127 23.2123 24.1348 26.0429 27.0513 31.7094 35.0513 34.0429 38.0513 38.7621 45.1348 44.0453 53.6348 44.5453 57.2183 41.7119 60.7363 37.4721 62.1348 34.0429 62.1348 29.5434
+					53.6348 27.4062 52.1748 24.7158 50.8848 23.2123 48.2183 26.0429 43.0513 13.7094 25.2183 12.3764 18.5513 7.70941 16.5513 0.0429077 13.0654Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="57.0005" y="276" ai:objID="14651200" ai:seqID="172" data="M0 24.3335C0 24.3335 2.17041 11 4.33496 0L9.3335 0.5 15.333 7.3335 15.333 10.5776 23.3354 15.8066 27.9995 17.667 33.334 24.3335 34.333 27.0835 39.3354 36 37.9995 38.5835 40 43.667 42.6665 48.5 38.001 51.3765 33.334 51.3765 21.3335 50.5835 20.0024
+					43.667 20.0024 38.5835 12.333 36.5 4.33496 31.125 0 24.3335Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="56.8369" y="300.333" ai:objID="11015600" ai:seqID="173" data="M0 81.1738 2.72754 71.9585 7.84375 60.8467 16.0298 55.2915 16.0298 52.1924 19.7813 47.7031 24.2188 39.5952 22.1699 32.1343 25.5801 32.1343 34.4497 28.6172 41.6113 32.1343 45.022 32.1343 51.1621 29.9829 56.626 26.4946 56.626 24.8677 52.188 19.7573
+					45.3633 15.0796 41.6113 13.7568 45.3638 10.582 48.7744 0 52.188 0 56.626 0 61.5659 2.91016 66.1704 0 67.0229 7.18652 69.2461 9.1709 70.438 13.7568 74.0171 16.5786 76.4053 18.2544 80.4961 24.8677 78.6196 26.4946 78.1079 29.9829 80.4961 32.8926
+					80.4961 37.3901 78.793 40.9175 78.793 43.166 78.1079 48.9419 78.793 53.2632 84.2476 55.3794 84.2505 48.9419 85.7822 43.166 87.6611 46.5615 93.6279 57.4961 99.5967 61.6787 106.763 61.6787 112.217 64.7271 99.5967 66.5757 95.8447 67.9897 93.6279
+					70.1948 89.7075 64.7271 59.0088 71.9585 70.2163 76.2417 72.1655 78.333 75.0396 82.8931 78.1079 85.0532 76.4053 91.0059 72.3125 95.5913 67.0229 100.883 66.1704 106.657 61.5659 112.347 56.626 112.347 51.1621 110.054 46.3862 108.195 38.959 104.321
+					34.4497 104.321 35.4717 94.6655 28.9907 93.916 9.89063 91.7114 4.77539 89.5952 0 85.0093 0 81.1738Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="115.667" y="355.333" winding="nonZero" ai:objID="10c10880" ai:seqID="174" data="M0 17 23.0024 23.333 28.6689 8.33301 5.33594 0 0 17Z" id="p14">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="151.006" y="361.5" winding="nonZero" ai:objID="10da0400" ai:seqID="175" data="M0 6.8335 6.3335 14.8335 18.3335 6.8335 9.99658 0 0 6.8335Z" id="p15">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="57.0005" y="386.333" winding="nonZero" ai:objID="8eaec80" ai:seqID="176" data="M0 42 10.6665 46.6665 10.6665 42 38 52 48.6665 21.333 30 13.333 30 7.33301 15.3335 0 10 18 38 27.333 34 36 7.3335 26 0 42Z" id="p19">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="33.8801" y="327.376" ai:objID="11404580" ai:seqID="177" data="M4.11987 83.2905 12.6199 79.04 12.6199 70.4565 14.6199 57.54 14.6199 49.207 20.7869 45.1235 23.1204 37.207 17.2878 34.1235 17.2878 30.4565 22.7883 21.29 27.4553 19.2065 30.4539 21.7827 38.4534 21.7827 40.7869 8.29053 36.1199 1.29053 27.4553 1.29053
+					20.7869 0 14.6199 0C14.6199 0 -9.38013 34.9575 4.11987 83.2905Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="193.833" y="396.833" ai:objID="11220300" ai:seqID="178" data="M26.8359 22.667 16.4893 13.834 10.8335 11.627 0 7.50049 6.83594 0 18.8335 0 23.833 0 28.5 3.75 32.6665 13.834 39.1665 20.667 56.1733 26.5835 60.5835 26.5835 62.3398 35.4956 53.8398 43.6675 48.1699 41.5005 42.5 44.709 45.8335 47.0054 43.5 52.4004
+					41.5 57.5005 31.1699 55.667 31.1699 47.0054 33.6665 43.6675 36.5005 39.8335 36.5005 35.9453 31.1699 30.7505 26.8359 22.667">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="222.333" y="384.917" ai:objID="115f2d00" ai:seqID="179" data="M2.66992 0.0834961 10.6665 0 18.3359 0.0834961 19.833 4.16699 28.6665 8.66699 32.0835 11.9165 33.8398 19.417 33.8398 23.5435 33.8398 26.4707 33.8398 30.167 31.6665 32.5835 26.3354 34.5835 19.833 32.5835 14 30.0835 10.6665 23.75 2.66992 16.207
+					0 8.66699 2.66992 0.0834961Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="133" y="268.667" ai:objID="113f6600" ai:seqID="180" data="M0 46.833 2.3335 43.333 6.00293 34.4165 11.3359 28.9995 15.8335 27 18.0063 20.333 11.3359 20.833 8.3335 22.9165 9.8335 16.5 18.0063 12 21.8335 14.9165 27.1729 9.9165 27.1729 6 27.1729 1.83301 31 0 33.3335 3.33301 31 7.33301 31 17 28.7529 20.333
+					28.7529 25 30.6733 27 35.667 28.9995 42.5 28.9995 45.6694 28.9995 54.0063 31.6665 54.0063 34.4165 49.9717 34.4165 44 38.458 44 41.6665 39.8335 44.6665 28.7529 45.9165 23.3335 43.333 21.2358 41.4136 18.0063 38.458 17.3335 43.833 11.3359 43.833
+					9.8335 45.9165 7.5 48 0 46.833Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="169.34" y="327.376" ai:objID="116eb600" ai:seqID="181" data="M10.251 31.2427 15.333 23.1235 17.6665 19.2065 20 13.7485 24.4937 6.20703 22.1602 0 25.8271 0 30.3071 0 30.3071 4.04053 34.1602 10.374 36.6602 15.6216 40.3271 21.7827 38.9937 25.29 24.4937 27.2905 17.6665 40.957 17.6665 43.207 20 45.1235 15.333
+					45.1235 7.66016 47.1235 0 45.1235 10.251 31.2427Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="204.672" y="324.21" ai:objID="113fd980" ai:seqID="182" data="M10.7661 38.79 17.0591 38.23 23.8457 24.959 26.6616 21.2383 23.8457 15.4028 21.3652 12.3608 17.0591 11.6226 11.7598 10.3145 7.4541 6.9541 4.47363 4.80615 2.48389 1.4458 0 0C0 0 13.418 35.8955 10.7661 38.79Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="158.667" y="253.333" ai:objID="11020880" ai:seqID="183" data="M7.6665 3.3335 16.833 1.25 20.0024 0 20.9238 8.25 20.9238 13.25 16.833 14.333 14.002 14.6665 7.6665 10.6665 0 8.25 7.6665 3.3335Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="139.836" y="382.707" ai:objID="10dab780" ai:seqID="184" data="M0 82.543 8.0791 59.877 29.999 64.6265 35.5039 59.877 38.833 49.6216 41.6641 37.0015 40.5 31.4365 38.833 25.9595 20.1641 31.7998 17.1704 27.96 32.665 0 59.9277 28.6802 63.7856 31.6265 58.7695 39.0015 53.1729 48.918 51.2021 54.9346 51.4297 60.835
+					51.4297 65.8276 55.8765 70.793 58.7695 71.793 63.7856 73.8765 65.3306 76.8765 58.7695 93.877 0 82.543Z" width="59.3306">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="189" y="413.667" winding="nonZero" ai:objID="10db2e00" ai:seqID="185" data="M0 85.3335 34.6665 85.3335 34.6665 75.3335 41.3335 69.0005 41.3335 58.667 33.3335 58.667 32 48.667 29.3335 48.667 28.6665 40.667 32.6665 28.667 30 25.3335 28 14.667 29.3335 0 15.3335 0 8.6665 19.3335 4 23.3335 4 32 9.3335 34.667 10.6665 42.6665
+					9.3335 48.667 5.3335 52 4 58 0 65.3335 0 85.3335Z" id="p13">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="99.667" y="417.313" ai:objID="113fc300" ai:seqID="186" data="M0 37.271 3.00732 20.8721 7.4209 12.4653 9.35254 0 14.2119 0 26.6069 5.4668 29.2593 15.0161 29.0732 20.8721 35.5986 20.8721 39.333 23.2744 31.6689 47.9375 0 37.271Z" width="32.333">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="108.669" y="434.667" winding="nonZero" ai:objID="10c10d00" ai:seqID="187" data="M0 18.667 22.6665 26 25 22.3335 27 22.3335 27 26 37.6665 28 37.6665 31.667 41 31.667 47.3335 13.667 39.6665 9.66699 37 15.3335 28 14 28 7 21.6665 7 7.99756 0 0 18.667Z" id="p20">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="124.667" y="422.583" winding="nonZero" ai:objID="11017400" ai:seqID="188" data="M0 11.4165 1.83789 0 17.6665 5.7085 14 14.083 0 11.4165Z" id="p18">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="143.336" y="403.333" winding="nonZero" ai:objID="10c10e80" ai:seqID="189" data="M0 34 5 21.6665 10.3335 23.6665 12.667 20.333 19.667 22.333 21.667 16 16.3335 13 21.667 0 36.3335 4 34 12 28.667 9.33301 26.3335 15 31.3335 19 28 24.6665 28 30.6665 22.3335 41 0 34Z" id="p16">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="262.667" y="404.333" ai:objID="10d98c00" ai:seqID="190" data="M1.71045 0 8.83398 8 17.5835 9.68994 27.3335 13.1665C27.3335 13.1665 29.3335 33.6333 68.3335 44.8999L61.8335 59.5957 45.667 65.0835 31.667 78.3335 31.667 66.3213 31.0005 56.625 31.667 53.8408 29.6704 50.25 27.3335 50.25 26.3335 46.6665 21.0869
+					41 15.3398 34.4575 8.83398 28.4448 4.16699 22.1255 0 13.1665 0 6.3335 1.71045 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="299.599" y="396.833" ai:objID="11215980" ai:seqID="191" data="M6.401 0C6.401 0 -1.43982 9.56738 0.234497 23.7505L21.2345 44.709 51.401 52.4004 60.901 54.667 73.7369 61.3413 91.4845 59.834 95.0704 63.7505 98.401 66.667 110.901 79.8345C110.901 79.8345 123.628 117.568 116.514 126.118 116.514 126.118 143.536
+					120.418 167.278 77.751L150.191 73.8218 136.08 65.6255 123.401 64.1255 113.07 57.7505 108.401 55.667 109.401 49.9854 113.07 44.709 120.153 41.2505 122.401 33.0537 116.514 28.75 39.235 2.0835 6.401 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="309.667" y="368.333" winding="nonZero" ai:objID="10db4c00" ai:seqID="192" data="M7.3335 0 0 18 7.3335 31.333 25.3335 36 25.3335 32 25.3335 20 19.3335 18 17.3335 9.33301 20 0 7.3335 0Z" id="p30">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="256.173" y="491.083" ai:objID="11404700" ai:seqID="193" data="M0 20.2695 9.49365 1.70654 12.9937 0 17.6606 2.0835 17.8267 10 19.8267 14.7075 21.833 19.9165 12.9937 31.8672 0 20.2695Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="304.331" y="522.951" ai:objID="113ff900" ai:seqID="194" data="M0.00241089 11.5098 16.5024 20.7173 18.0029 17.0493 8.33591 0C8.33591 0 -0.164093 3.47021 0.00241089 11.5098Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="300" y="536.336" ai:objID="1101b180" ai:seqID="195" data="M13.3325 15.2319 17.334 11.064 2.5 0 0 5.54053 13.3325 15.2319Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="283.753" y="517.667" ai:objID="11021900" ai:seqID="196" data="M0 5.28418 6.24658 0 16.2466 8.90283 15.8457 15.6431 13.0796 20.667 0 13 0 5.28418Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="310.422" y="501.218" ai:objID="14651800" ai:seqID="197" data="M0.244659 0 38.5777 10.1348 51.5777 14.8496 60.5801 13.3257 68.5782 13.3257 84.2471 10.1348 87.0777 4.57275C87.0777 4.57275 96.5777 38.1958 50.5777 83.9888 50.5777 83.9888 -4.08884 12.2183 0.244659 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="321.674" y="316.683" ai:objID="1121fd00" ai:seqID="198" data="M9.78467 67.0449 11.7832 52.9526 14.8384 48.2114 9.18066 41.6777 5.66602 41.0947 3.11719 39.0713 0.238281 30.1587 0 20.1401 10.9448 17.7124 11.9287 24.0244 12.0679 29.877 15.9214 30.6802 27.5171 34.5723 35.1084 38.3101 46.5757 43.7886 51.5645
+					43.1694 57.0527 35.7036 61.9326 30.4985 56.6997 20.875 45.8696 14.1304 34.5088 13.1099 18.5132 13.4907 15.3311 5.85449 19.2485 2.09326C19.2485 2.09326 39.1768 20.1245 86.2109 0L89.9067 1.0791 99.9058 8.00977 105.404 7.87891C105.404 7.87891 149.776
+					1.98828 180.291 44.2739 180.291 44.2739 195.964 44.1855 205.277 64.3926L217.175 101.997 214.792 106.971 205.345 109.28 194.489 115.457 186.61 99.6396 182.708 103.817 175.306 107.994 170.716 118.189 166.207 124.965 160.264 127.441 150.659 125.65
+					145.203 94.2246 121.659 87.6504 94.9609 104.984 39.7876 87.8369 17.0498 78.084 9.78467 67.0449Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="445.667" y="408.667" winding="nonZero" ai:objID="10da4600" ai:seqID="199" data="M0 23 11.3335 27 11.3335 29.667 26.667 33.667 26.667 18 17.667 13.667 18.3335 9.66699 28.667 13 31.3335 6.3335 15.6665 0 11 10.667 8.66699 10.3335 7.66699 13.3335 3 16.167 0 23Z" id="p10">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="412.669" y="408.667" winding="nonZero" ai:objID="10da3a00" ai:seqID="200" data="M0 10.3335 9.6665 16.8335 12 13.5835 21.3335 16.167 26.6665 6.3335 17.6665 0 16.6665 3.66699 11 0 10 2.3335 4.6665 1.66699 0 10.3335Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="336.5" y="395.667" winding="nonZero" ai:objID="1115c980" ai:seqID="201" data="M0 0 96.9995 33.958 106.833 29.1665 109.166 23.9165" id="r1030" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Ellipse x="443.333" y="417.5" width="4.66699" height="4.16699" ai:objID="10d99800" ai:seqID="202">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="334.167" y="393.583" width="4.66699" height="4.16699" ai:objID="11161c00" ai:seqID="203">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Path x="445.667" y="385" winding="nonZero" ai:objID="10da3700" ai:seqID="204" data="M6.00244 23.6665 0 21.6665 4.66895 6.3335 15.6665 9.3335 17.0024 6.3335 19.3359 8 24.3359 0 36.3359 3.6665 36.3359 0 39.6689 0 39.6689 5.6665 45.0024 5.6665 43.3359 10.3335 28.0024 9 27.0024 11.833 22.5015 15 18.6689 19.3335 9.33594 19.3335 6.00244
+					23.6665Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="168.667" y="376.333" ai:objID="115f1800" ai:seqID="205" data="M0 4.07031 8.33301 10.6665 10.9238 10.6665 22.833 13.4585 28.1729 13.4585 30.4995 15.583 32.0024 10.6665 28.3203 6.37354 20.8364 2.3335 13 0 0 0.25 0 4.07031Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="203.5" y="369.021" ai:objID="115ed600" ai:seqID="206" data="M1.5 24.562C1.5 24.562 8.67188 21.4785 11.8359 17.9785L11.8359 11.6865 17.1694 9.64551 9.50244 5.47852 11.8359 1.56201 9.16699 0 2.41699 9.64502 0 9.64551 0 15.1035 1.5 24.562Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="248.669" y="343.605" ai:objID="11216700" ai:seqID="207" data="M0 37.6978 13.9976 36.7988 18.4209 35.0615 22.8315 32.7285 20.498 36.7988 22.8315 40.52 20.498 43.395 29.3374 46.187 31.5811 42.7285 45.6646 30.895 49.6646 27.7285 40.3311 25.4785 40.3311 6.89502 40.3311 1.80762 29.3374 0 25.998 0 25.165 8.97852
+					29.3374 12.9019 22.8315 14.7285 20.498 18.395 20.498 20.9785 2.33105 18.895 0 37.6978Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="217.667" y="344.333" winding="nonZero" ai:objID="10c10100" ai:seqID="208" data="M3.00293 24 24.667 32.6665 32.3335 34.333 32.3335 21 33.667 16 43.3335 19 49 5.3335 41 0 37 3.6665 29 3.3335 26.0015 3 21.667 0 12.6675 2 12.6675 7.6665 0 8 3.00293 17.1665 3.00293 24Z" id="p25">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="402.665" y="246.667" winding="nonZero" ai:objID="10d9f200" ai:seqID="209" data="M33.3335 49 85.3335 8.5C85.3335 8.5 91.333 27.0005 156 0 156 0 175.667 14 178 22.333 178 22.333 163 16.0005 147.333 24.5 147.333 24.5 103 48.9995 156.333 102 156.333 102 162.333 120.999 174.333 126.666 174.333 126.666 179 150.333 193 162 193 162
+					192.667 170 202.333 177 202.333 177 202 210.666 238.667 225.666 238.667 225.666 241 243.353 259.667 250.343 259.667 250.343 287.667 269 290.667 279L295 293.333C295 293.333 249.667 265.333 231.333 270.333 231.333 270.333 219.333 273.667 221.333
+					282.333L214.667 287.666C214.667 287.666 192.333 291.666 218 322.333 218 322.333 220 333.334 227.333 340 227.333 340 230.667 350.666 223.333 349.333 223.333 349.333 216.667 346.23 214 349.448 214 349.448 197.667 356.667 206.667 384L210.667 399
+					C210.667 399 190.667 368.667 194.667 354 198.667 339.333 194.667 329.666 194.667 329.666L195.667 319.333 191.667 315.333 188.333 302.666 186 293.333C186 293.333 179.334 292.333 180.667 283L185 267.333C185 267.333 185 255.999 181.667 259.666 178.333
+					263.333 173.667 266.333 173.667 266.333 173.667 266.333 164 266.999 170.667 257.666L175 250.343 180.333 241.333 180.333 233.333 185 228.333 187.333 219.333 185 216.666 178.667 207.667C178.667 207.667 176.334 199.334 172.667 199.5L160 189 154
+					178.833C154 178.833 148 167.499 137.667 170.416L126.333 170.416C126.333 170.416 127.667 170 132 164.333 136.333 158.666 130 152.666 130 152.666L130 146 128.333 138.333 128 132C128 132 107.667 122.666 106.333 116.666L99.3335 111.166C99.3335 111.166
+					94.3335 97.666 62.3335 108.666 62.3335 108.666 12 99.333 13 107L12.9854 111.166 0 102 4.66699 97.6665 16 94.9995 26.3335 80.333 32.667 77.1665 36.6704 74.666 41 69.333 33.3335 49Z">
+				<s:fill>
+					<s:SolidColor color="#27AAE1"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#1C75BC"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="210.667" y="286.583" ai:objID="1101ae80" ai:seqID="210" data="M0 34.083 1.33545 25.9165 5.66895 21.5835 8.33594 12.4165 9.00244 0 15.3364 4.4165 20.667 6.9165 41.333 34.083 41.333 36.75 51.333 46.75 56 48.4165 45.8359 72.0835 40.9175 70 39.002 67.8335 32.4995 62.4092 0 34.083Z" width="46" height="29.0835">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="200.669" y="300.333" winding="nonZero" ai:objID="10da8780" ai:seqID="211" data="M0 23.6665 7.3335 27.333 7.3335 31.333 28.3335 38.6665 34.3335 25.6665 40 10 8.99756 0 5.6665 7.6665 14.3335 12.333 14.3335 17 18.6665 19.333 17.6665 24 2.3335 17.333 0 22.333 0 23.6665Z" id="p7">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="273.501" y="283.583" ai:objID="10dada00" ai:seqID="212" data="M0 26.75 4.50537 18.105 4.50537 11.0835 10.2524 2.5835 15.499 0 15.499 2.5835 18.8359 8.22314 16.499 12.0835 23.332 16.0415 26.0981 19.5 30.8325 26.75 23.332 40.25 10.8325 43.793 0 26.75Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="279.333" y="323.833" winding="nonZero" ai:objID="10da4d80" ai:seqID="213" data="M0 11.8335 3 4.1665 7.33301 5.8335 9.6665 0 20.6665 2.8335 17.6665 13.5 11.667 13.5 10.3335 15.1665 0 11.8335Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="291" y="316" winding="nonZero" ai:objID="10da4a80" ai:seqID="214" data="M0 31 2.66602 23 11.9995 27 14.333 11.3335 7.1665 7.8335 10.666 0 31.3335 6 26.666 23 21.666 34.667 12.666 32.3335 0 31Z">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="254" y="312" winding="nonZero" ai:objID="10da5080" ai:seqID="215" data="M0 18 8 5.3335 14.3335 7.6665C14.3335 7.6665 19 9.00049 20 7.66699L22.6665 0 30.3335 4C30.3335 4 21.3335 19 22.3335 21L17 21 11 23.667 0 18Z" id="p4">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="293.667" y="276.5" ai:objID="115ec580" ai:seqID="216" data="M42 39.5 37.333 43.167 37.333 47.3335 28.0073 41.0835 23.667 33.8335 21.3335 28.98 16 26.5835 13 23.125 10.6665 18.167 10.6641 13 0.666504 8.66699 0 5 3.16602 1.54199 4.67285 0C4.67285 0 8.18555 1.87744 11.9194 6.08203 21.5259 16.8989 38.2153
+					37.501 42 39.5Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="105.667" y="469.501" ai:objID="1115d100" ai:seqID="217" data="M0 33.6655 0 26.9175 7.27832 27.5083 8.66797 21.582 7.27832 18.3999 10 13.1655 29.6665 0 37.1665 2.99902 54.3359 7.16602 71.333 9.91553 79.001 9.91553 82.6665 13.1655 97.833 31.7168C97.833 31.7168 68.667 35.3325 53 33.6655L32 37.5156 16.5 37.5156
+					8.66797 37.5156 0 33.6655Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="34.0234" y="477.769" ai:objID="10d9b000" ai:seqID="218" data="M18.3721 19.7158 6.9502 21.4946 1.1958 14.0386 0 7.79541 3.26611 0C3.26611 0 12.8247 20.7124 18.3721 19.7158Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="5" y="446.167" ai:objID="10daa580" ai:seqID="219" data="M0 25.3335 13.3354 36.5 20.5 31.6021 20.5 26.3335 29.0234 23.25C29.0234 23.25 22.5 6.16699 20 0L13.3354 0 11.668 4.83301 11.668 11.4165 9 17.333 0 25.3335Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="38.0024" y="511.353" ai:objID="14655400" ai:seqID="220" data="M0 11.5977 0 16.647 5.20703 11.5977 9.99756 7.88916 9.99756 19.314 9.99756 24.9834 14.3931 21.9565 14.3931 16.647 16.271 7.88916 16.271 4.15186 13.1655 0 0 11.5977Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="235.333" y="443.838" ai:objID="1101bc00" ai:seqID="221" data="M0 10.4951 4.3335 12.4946 5.33594 17.1201 5.33594 25.5786 6.83301 27.6621 20.8398 25.6631 27.333 25.5786 32 19.8281 38.1675 14.9536 36.167 7.16162 4.3335 0">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="247.673" y="435.667" winding="nonZero" ai:objID="10d9ff80" ai:seqID="222" data="M0 15.8335 4.6665 4.3335 2.3335 0 11.333 0 15.6665 0 15.6665 2.66699 17 2.66699 15 6.66699 14.333 9.66699 17 9.66699 17 15.8335 0 15.8335Z" id="p44">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Path x="709" y="670.5" ai:objID="115f6480" ai:seqID="223" data="M0 17.833 28 20 20 0 0 17.833Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="923.173" y="828.667" ai:objID="11215080" ai:seqID="224" data="M0 21.833 5.83154 14.75 10.083 4.16699 20.1665 4.16602 24.8335 4.16602 27.3271 0 34.0459 0 42.3271 0 50.3271 4.16602 60.3271 27 70.8271 27 79.3271 30.667 91.8271 30.667 98.3271 30.667 100.827 46.833 119.827 53.9854 130.827 51 136.167 42.666 141.667
+					34.9619 147.167 21.833 147.167 9.33301 166.833 32.8789C166.833 32.8789 144.327 51.333 152.327 56.333L121.327 65.917 95.3271 73.833 83.417 78.833 75.4102 78.833 60.8271 74.333 42.3271 63.333 16.8271 44 0 21.833Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="841" y="770" ai:objID="10daa280" ai:seqID="225" data="M0 2.5 4.521 0 19.0063 2.5 23.6724 2.5 33.6729 5.5 36 20 33.6729 25.7881 28.3394 29.2275 13.5 20 0 2.5Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="867.006" y="761.167" ai:objID="11215e00" ai:seqID="226" data="M0 6.5 2.3335 0 9.99414 0 13.3877 0 16.9941 0 19.667 6.5 19.667 10.833 12.3335 13.5 0 6.5Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="867.006" y="745.333" ai:objID="10d96980" ai:seqID="227" data="M0 4.66699 0 9.33398 4.00049 9.83301 4.00049 15.834 7.66699 12.667 7.66699 9.33398 7.66699 1.66699 7.66699 0 2.3335 0 0 4.66699Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="811.332" y="743.333" ai:objID="113fa800" ai:seqID="228" data="M0 3.66699 4.66699 2 12.668 0 16.3389 0 21.3369 3.66699 16.3389 9.91699 21.3369 17.834 21.3369 21 16.3389 22.5508 0 3.66699Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="766.5" y="816.288" ai:objID="115f8d00" ai:seqID="229" data="M0 99.7119 82.5063 47.3408C82.5063 47.3408 122.5 52.3408 122 73.5264L99.4897 140.212 102.839 150.712 112.839 134.046 120.173 116.712 126.506 94.2119 142.281 78.2959 154 63.3789 86 0 39.8379 55.0449 17.1709 78.2959 13.6709 86.2119 0 99.7119Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="766.5" y="745.333" ai:objID="113ff600" ai:seqID="230" data="M8.00195 98.334 49.499 79.2275 34.1655 61.167 55.5005 39.2803 34.1655 20.5508 17.1709 1.66699 4.5 0 0 31.833 0 48.334 0 59.417 8.00195 70.9551 3.5 83.334 1.50195 92.667 8.00195 98.334Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="740" y="891.645" ai:objID="113f8880" ai:seqID="231" data="M0 21.3555 2.5 7.10547 7 7.10547 16.5 14.2305 16.5 7.10547 20 0 28.002 2.93945 38.6709 0 11.5 24.3555 0 21.3555Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="759.335" y="903.822" ai:objID="11402d80" ai:seqID="232" data="M8.6665 19.8994 12.6646 12.1777 20.8354 10.1777 15.1665 0 0 12.1777 0 17.8164 8.6665 19.8994Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="705.5" y="929.333" ai:objID="10d96e00" ai:seqID="233" data="M53.8354 13.667 61 9.33398 61 2.66699 53.8354 0 48.5 9.33398 48.5 13.667 29.8379 13.667 27.5044 6.83301 3.5 4.16699 0 13.667 0 21.001 0 25.667 4.50439 25.667 27.5044 25.667 30.5 35.167 27.5044 37.667 39.5 43.333 40 48.167 39 57.167 38 65.667 50
+					69.167 61 65.667 58 59.667 57 46.167 58.5 34.583 61 21.001 53.8354 13.667Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="705.5" y="969.5" ai:objID="1121e680" ai:seqID="234" data="M0 17.5 0 21 13 17.5 16.5044 14.5 27.5044 26 28.5044 17.5 28.5044 3.16602 16.5044 3.16602 4.50439 0 0 6 0 17.5Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="716" y="998.5" ai:objID="1121ca00" ai:seqID="235" data="M0 10 6.00439 3 18.0044 3 24 0 26.5 5 24 10 24 17 26.5 20.5 26.5 24.5 21.6714 29 11.3354 22 0 12.5 0 10Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="1087" y="821.5" ai:objID="115f5100" ai:seqID="236" data="M0 20.084 0 9.25 2.67285 0 8.33984 0 16.0059 3.37109 18.6729 7.16699 45.0859 7.16699 72.9199 7.16699 72.9199 11.333 58.6729 9.25 51 9.25 33.5 9.25 20.6729 9.25 20.6729 16.5 20.6729 21.917 25.7559 30.5 30.8398 34.167 50 37.834 36.46 44.2119C36.46
+					44.2119 13.0117 39.668 9.50586 37.834L5 32.5 2.67285 25.334 0 20.084Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="1018.5" y="758.5" ai:objID="11017580" ai:seqID="237" data="M5.5 0 9.80664 9.41602 16.1729 23.334 0 18.666 3 26.1133 10.5059 35.167 10.5059 37.2881 10.5059 44.7881 46.3398 50.2051 48.5 37.2881 54 28.5 59.5 23.334 46.3398 18.666 26.5 11.5 16.1729 11.5 5.5 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="1140.34" y="795.788" ai:objID="115f6c00" ai:seqID="238" data="M0 0 0 7.5 9.66016 8.96191 14.1602 2.08301 0 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="1110.67" y="797.871" ai:objID="11400380" ai:seqID="239" data="M7.16699 2.71289 12.7871 5.41699 15.8271 4.06445 0 0 0 4.7959 7.16699 2.71289Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Path x="1096.51" y="793.705" ai:objID="11220c00" ai:seqID="240" data="M0 0 0 5.52246 0 6.87891 2.33398 11.0449 2.33398 17.083 2.33398 24.666 0 29.4619 6.5 29.4619 7.74707 18.166 7.74707 9.58301 7.74707 4.16602 4.16699 0 0 0Z">
+				<s:fill>
+					<s:SolidColor color="#497336"/>
+				</s:fill>
+			</s:Path>
+			<s:Rect x="1104.25" y="811.871" width="55.667" height="13" ai:objID="10d9e900" ai:seqID="241">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Rect>
+			<s:Path x="291" y="454.333" winding="nonZero" ai:objID="10d9ec00" ai:seqID="242" data="M0 38 18.6665 30.6665 44 38 48 49.333 70.6665 56.6665 77.3335 40 73.3335 37.333 73.3335 30.6665 60.6665 26.6665 56.6665 32 47.3335 16.6665 48.6665 4.6665 38.6665 0 35.3335 11.333 18.6665 9.33301 18.6665 16 10.6665 14.6665 0 38Z" id="p11">
+				<s:fill>
+					<s:SolidColor color="#939598"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#6D6E71"/>
+				</s:stroke>
+			</s:Path>
+			<s:Ellipse x="184.673" y="475.25" width="4.66699" height="4.16699" ai:objID="10db3280" ai:seqID="243">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Ellipse x="262.667" y="440.5" width="4.66699" height="4.16699" ai:objID="1115ea80" ai:seqID="244">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			<s:Path x="135.333" y="421.583" winding="nonZero" ai:objID="11164d80" ai:seqID="81" data="M6 0 10.3335 3.25 3.66943 23.75 0 33" id="r1820" visible="false">
+				<s:stroke>
+					<s:SolidColorStroke  weight="2" caps="none" joints="miter" miterLimit="10" color="#FFFFFF"/>
+				</s:stroke>
+			</s:Path>
+			<s:Ellipse x="133" y="452.5" width="4.66699" height="4.16699" ai:objID="10d9aa00" ai:seqID="143">
+				<s:fill>
+					<s:SolidColor color="#FFFFFF"/>
+				</s:fill>
+				<s:stroke>
+					<s:SolidColorStroke  weight="1" caps="none" joints="miter" miterLimit="10" color="#ED1C24"/>
+				</s:stroke>
+			</s:Ellipse>
+			
+			<mx:Image id="pin" source="@Embed('assets/map-pin.png')" x="261" y="209.5" visible="false" width="54" height="61"/>
+			
+		</s:Group>
+		
+		
+	</s:Graphic>
+	<!--</local:CustomPanZoomContent>
+	</panzoom:PanZoomComponent>-->
+	
+	<!--A continuacion el menu-->
+	
+	<mx:Image source="@Embed('assets/retomarconsulta_btnh.png')" x="1347" y="1028" click="retakeSearch(event)" rollOut="image1_rollOutHandler(event)" rollOver="image1_rollOverHandler(event)"/>
+	
+	<s:List id="list"
+			itemRenderer="skins.CustomListSkin"
+			labelField="name"
+			width="350"
+			height="1080"
+			horizontalCenter="785" verticalCenter="0"
+			change="setDestination(event)">
+		<s:layout>
+			<s:VerticalLayout horizontalAlign="justify" gap="0" requestedRowCount="6" />
+		</s:layout>
+		<s:dataProvider>
+			<s:ArrayList>
+				<local:ProductVO name="Gimnasio de Profesores" icon="@Embed('assets/sports.png')" num="0"/>
+				<local:ProductVO name="FIEC" icon="@Embed('assets/building.png')" num="1"/>
+				<local:ProductVO name="Coliseo" icon="@Embed('assets/sports.png')" num="2"/>
+				<local:ProductVO name="FIMCP" icon="@Embed('assets/building.png')" num="3"/>
+				<local:ProductVO name="FICT" icon="@Embed('assets/building.png')" num="4"/>
+				<local:ProductVO name="Bares de la FIMCP" icon="@Embed('assets/restaurant.png')" num="5"/>
+				<local:ProductVO name="Comedor de la FIEC" icon="@Embed('assets/restaurant.png')" num="6"/>
+				<local:ProductVO name="Aulas FIEC" icon="@Embed('assets/class.png')" num="7"/>
+				<local:ProductVO name="Paradero de buses FIMCP" icon="@Embed('assets/bus.png')" num="8"/>
+				<local:ProductVO name="Laboratorios FIEC (COM)" icon="@Embed('assets/computers.png')" num="9"/>
+				<local:ProductVO name="Facultad de Ciencias del Mar" icon="@Embed('assets/building.png')" num="10"/>
+				<local:ProductVO name="Rectorado" icon="@Embed('assets/building.png')" num="11"/>
+				<local:ProductVO name="Edificio Financiero" icon="@Embed('assets/others.png')" num="12"/>
+				<local:ProductVO name="Biblioteca Central de Ingenierias" icon="@Embed('assets/book.png')" num="13"/>
+				<local:ProductVO name="ICM" icon="@Embed('assets/building.png')" num="14"/>
+				<local:ProductVO name="Bares del ICM" icon="@Embed('assets/restaurant.png')" num="15"/>
+				<local:ProductVO name="Aulas de Materias Basicas - Bloque BA" icon="@Embed('assets/class.png')" num="16"/>
+				<local:ProductVO name="ICF" icon="@Embed('assets/building.png')" num="17"/>
+				<local:ProductVO name="ICQ" icon="@Embed('assets/building.png')" num="18"/>
+				<local:ProductVO name="Laboratorios de ICQ e ICF" icon="@Embed('assets/labs.png')" num="19"/>
+				<local:ProductVO name="Aulas FEN - Bloque A" icon="@Embed('assets/class.png')" num="20"/>
+				<local:ProductVO name="Comedor de la FEN" icon="@Embed('assets/restaurant.png')" num="21"/>
+				<local:ProductVO name="Aulas FEN - Bloque B" icon="@Embed('assets/class.png')" num="22"/>
+				<local:ProductVO name="FEN" icon="@Embed('assets/building.png')" num="23"/>
+				<local:ProductVO name="Aulas de Marerias Basicas - Bloque X" icon="@Embed('assets/class.png')" num="24"/>
+				<local:ProductVO name="Aulas de la FICT" icon="@Embed('assets/class.png')" num="25"/>
+				<local:ProductVO name="Laboratorios de Electronica" icon="@Embed('assets/labs.png')" num="26"/>
+				<local:ProductVO name="Aulas FIMCP" icon="@Embed('assets/class.png')" num="27"/>
+				<local:ProductVO name="FEPOL" icon="@Embed('assets/others.png')" num="28"/>
+				<local:ProductVO name="CSI" icon="@Embed('assets/others.png')" num="29"/>
+				<local:ProductVO name="Comedor LA DELICIA" icon="@Embed('assets/restaurant.png')" num="30"/>
+				<local:ProductVO name="Bienestar Estudiantil" icon="@Embed('assets/others.png')" num="31"/>
+				<local:ProductVO name="Piscina" icon="@Embed('assets/sports.png')" num="32"/>
+				<local:ProductVO name="Canchas de la FIEC" icon="@Embed('assets/sports.png')" num="33"/>
+				<local:ProductVO name="Gimnasio de Alumnos" icon="@Embed('assets/sports.png')" num="34"/>
+				<local:ProductVO name="Cancha de Tecnologias" icon="@Embed('assets/sports.png')" num="35"/>
+				<local:ProductVO name="CISE y CELEX" icon="@Embed('assets/others.png')" num="36"/>
+				<local:ProductVO name="Aulas de Tecnologias" icon="@Embed('assets/class.png')" num="37"/>
+				<local:ProductVO name="Paradero de Tecnologias" icon="@Embed('assets/bus.png')" num="38"/>
+				<local:ProductVO name="Colegio Politecnico" icon="@Embed('assets/building.png')" num="39"/>
+				<local:ProductVO name="CTI" icon="@Embed('assets/others.png')" num="40"/>
+				<local:ProductVO name="Aulas de Prepolitecnico" icon="@Embed('assets/class.png')" num="41"/>
+				<local:ProductVO name="Paradero de la FEN" icon="@Embed('assets/bus.png')" num="42"/>
+				<local:ProductVO name="Paradero de Rectorado" icon="@Embed('assets/bus.png')" num="43"/>
+				<local:ProductVO name="Comedor Bopan" icon="@Embed('assets/restaurant.png')" num="44"/>
+				<local:ProductVO name="Facultad de Tecnologias" icon="@Embed('assets/building.png')" num="45"/>
+			</s:ArrayList>
+		</s:dataProvider>
+	</s:List>
+	
+	
+	
+	
+	
+	<mx:Canvas horizontalCenter="0"
+			   top="0" visible="false">
+		<mx:VBox horizontalCenter="-88"
+				 top="41.2"
+				 horizontalAlign="center">
+			<mx:Image height="256"
+					  width="256"
+					  top="0"
+					  id="unknownFaceImage"
+					  scaleContent="true"
+					  smoothBitmapContent="true"
+					  horizontalCenter="0"/>
+			<mx:Spacer height="20"/>
+			<mx:Image height="256"
+					  width="256"
+					  top="0"
+					  id="machedFaceImage"
+					  scaleContent="true"
+					  smoothBitmapContent="true"
+					  horizontalCenter="0"/>
+		</mx:VBox>
+		
+		<mx:Label text="Face to be recognized :"
+				  top="50.2"
+				  horizontalCenter="-301"
+				  color="#FFFFFF" fontSize="14"/>
+		<mx:Text text="Most similar face in training set :"
+				 width="136"
+				 height="70"
+				 color="#FFFFFF"
+				 horizontalCenter="-301"
+				 top="320.2" fontSize="14"/>
+		
+		<mx:VBox y="41.3"
+				 horizontalAlign="center"
+				 x="527.9"
+				 verticalGap="13">
+			<mx:TextArea width="320"
+						 height="260"
+						 horizontalCenter="300"
+						 top="20"
+						 id="progressShower"
+						 wordWrap="true"
+						 editable="false"
+						 enabled="true"
+						 color="#000000"
+						 borderStyle="solid"
+						 borderColor="#606060"
+						 fontSize="12"
+						 fontWeight="normal"
+						 fontFamily="Courier New"
+						 htmlText="&lt;b&gt;Log:&lt;/b&gt;"
+						 fontStyle="normal" />
+			<mx:Spacer height="20"/>
+			<mx:Button label="Load trening set"
+					   click="getTrainingSetData.send();"
+					   fontSize="14"/>
+			<mx:Button label="Start training"
+					   click="faceRecognition.train();"
+					   visible="true"
+					   fontSize="14"/>
+			<mx:Label text="Choose face to be recognized :" fontSize="16" color="#FFFFFF"/>
+			<mx:HBox>
+				<mx:Button label="Face 1"
+						   click="loadFace(unknownFaceImageUrl);"
+						   fontSize="14"/>
+				<mx:Button label="Face 2"
+						   click="loadFace(unknownFaceImageUrl2);"
+						   fontSize="14"/>
+			</mx:HBox>
+			
+			<mx:Button label="Start recognition"
+					   click="faceRecognition.probe(face);"
+					   visible="true"
+					   fontSize="14"/>
+		</mx:VBox>
+		<mx:VideoDisplay id="myVid" x="83" y="57" width="533" height="400"/>
+		<mx:Image id="imagen" x="104" y="503" width="221" height="93" scaleContent="true"
+				  smoothBitmapContent="true"/>
+		
+	</mx:Canvas>
+	
+	<mx:Image id="indicator" source="@Embed('assets/loading.png')" horizontalCenter="0" verticalCenter="0" visible="false"/>
+	
+	<s:Panel id="cfginicial_panel" horizontalCenter="0" verticalCenter="0" width="458" height="137"
+			 title="Configuración Inicial">
+		<s:Label x="20" y="10" text="Seleccione la estación en la que se encontrará el sistema:"/>
+		<s:Button id="estacion1_btn" x="141" y="51" label="Estación 1"
+				  click="estacion1_btn_clickHandler(event)"/>
+		<s:Button id="estacion2_btn" x="267" y="52" label="Estación 2"
+				  click="estacion2_btn_clickHandler(event)"/>
+	</s:Panel>
+	
+	
+	
+</s:Application>
